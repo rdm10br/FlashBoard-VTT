@@ -19,7 +19,7 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    socket.setAssetUploadHandler((data: ServerMessage) => {
+    socket.setAssetUploadHandler("token_image", (data: ServerMessage) => {
       if (data.type !== "BACKUP_GRANT_ISSUED" || data.payload.kind !== "asset_upload") return;
       const selectedFile = fileInputRef.current?.files?.[0] ?? file;
       const action = pendingAction.current;
@@ -27,7 +27,7 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
 
       void uploadTokenImage(selectedFile, data.payload.token, action);
     });
-    return () => socket.setAssetUploadHandler(null);
+    return () => socket.setAssetUploadHandler("token_image", null);
   }, [socket, file]);
 
   async function uploadTokenImage(selectedFile: File, grant: string, action: UploadAction) {

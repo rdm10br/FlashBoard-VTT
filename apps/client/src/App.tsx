@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
@@ -11,6 +11,7 @@ type Screen = "login" | "lobby" | "game";
 type UserData = {
   user_id: string;
   nickname: string;
+  is_admin: boolean;
   sessions: { id: string; name: string; owner_id: string; role: Role }[];
 };
 
@@ -24,14 +25,9 @@ type SessionData = {
   chat?: ChatMessage[];
 };
 
-import {
-  getSavedNickname,
-  saveNickname,
-  clearNickname,
-  getSavedBootId,
-  saveBootId,
-  clearBootId,
-} from "./network/authStorage";
+import { clearAuthToken, getSavedAuthToken, saveAuthToken } from "./network/authStorage";
+import type { AdminUserSummary } from "@vtt/protocol";
+import type { SceneMap } from "@vtt/protocol";
 
 type AppProps = {
   socket: SocketManager;
@@ -42,47 +38,58 @@ export function App({ socket, onSessionJoined }: AppProps) {
   const [screen, setScreen] = useState<Screen>("login");
   const [user, setUser] = useState<UserData | null>(null);
   const [session, setSession] = useState<SessionData | null>(null);
+  const [currentSceneId, setCurrentSceneId] = useState<string | null>(null);
+  const [sceneMap, setSceneMap] = useState<SceneMap | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminUsers, setAdminUsers] = useState<AdminUserSummary[]>([]);
+  const [adminBootstrapAvailable, setAdminBootstrapAvailable] = useState(false);
   const [connStatus, setConnStatus] = useState<ConnectionStatus>("connecting");
+  const sessionRef = useRef<SessionData | null>(null);
+  const refreshAdminUsers = useCallback(() => {
+    socket.send({ type: "ADMIN_LIST_USERS", payload: {} });
+  }, [socket]);
 
   const joinCodeFromUrl = new URLSearchParams(window.location.search).get("join");
 
   function handleLogout() {
-    clearNickname();
-    clearBootId();
+    socket.send({ type: "USER_LOGOUT", payload: {} });
+    clearAuthToken();
+    sessionRef.current = null;
+    setCurrentSceneId(null);
+    setSceneMap(null);
     setUser(null);
+    setSession(null);
     setUserError(null);
     setSessionError(null);
+    setAdminError(null);
     setScreen("login");
   }
 
   useEffect(() => {
-    let currentBootId: string | null = null;
+    let resumeAttempt = false;
 
     socket.connect(
       (data: ServerMessage) => {
       if (data.type === "CONNECTED") {
-      currentBootId = data.payload.boot_id;
-      const savedBootId = getSavedBootId();
-      const saved = getSavedNickname();
-
-      if (saved && savedBootId === currentBootId) {
-        // Mesmo servidor de antes (boot_id bate) — relogin automático.
-        socket.send({ type: "USER_LOGIN", payload: { nickname: saved } });
+      setAdminBootstrapAvailable(data.payload.admin_bootstrap_available);
+      const savedToken = getSavedAuthToken();
+      if (savedToken) {
+        resumeAttempt = true;
+        socket.send({ type: "USER_RESUME", payload: { token: savedToken } });
       } else {
-        // Servidor reiniciou desde o último login salvo (ou nunca logamos aqui) — força login manual.
-        clearNickname();
-        clearBootId();
+        setScreen("login");
       }
       return;
     }
 
       if (data.type === "USER_STATE") {
+      resumeAttempt = false;
       const { user_id, nickname, sessions } = data.payload;
-      saveNickname(nickname);
-      if (currentBootId) saveBootId(currentBootId);
-      setUser({ user_id, nickname, sessions });
+      saveAuthToken(data.payload.auth_token);
+      setUser({ user_id, nickname, sessions, is_admin: data.payload.is_admin });
+      if (data.payload.is_admin) socket.send({ type: "ADMIN_LIST_USERS", payload: {} });
 
       // Se veio via link de convite, entra direto
       if (joinCodeFromUrl) {
@@ -90,19 +97,53 @@ export function App({ socket, onSessionJoined }: AppProps) {
         return;
       }
 
-      setScreen("lobby");
+      const previousSession = sessionRef.current;
+      if (previousSession) {
+        socket.send({ type: "SESSION_ENTER", payload: { session_id: previousSession.session_id } });
+      } else {
+        setScreen("lobby");
+      }
       return;
     }
 
       if (data.type === "USER_ERROR") {
+        if (resumeAttempt) {
+          resumeAttempt = false;
+          clearAuthToken();
+          sessionRef.current = null;
+          setSession(null);
+          setUser(null);
+          setScreen("login");
+        }
+        setAdminError(data.payload.message);
         setUserError(data.payload.message);
+        return;
+      }
+
+      if (data.type === "USER_LOGGED_OUT") {
+        clearAuthToken();
+        sessionRef.current = null;
+        setAdminUsers([]);
+        setSession(null);
+        setUser(null);
+        setUserError(null);
+        setAdminError(null);
+        setScreen("login");
+        return;
+      }
+
+      if (data.type === "ADMIN_USERS") {
+        setAdminUsers(data.payload.users);
+        setAdminError(null);
         return;
       }
 
       if (data.type === "SESSION_JOINED") {
         const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat } = data.payload;
+        setCurrentSceneId(active_scene_id || scenes[0]?.id || null);
+        setSceneMap(null);
 
-        setSession({
+        const nextSession = {
           session_id,
           session_name,
           nickname: member.nickname || user?.nickname || "",
@@ -110,7 +151,9 @@ export function App({ socket, onSessionJoined }: AppProps) {
           invite_codes,
           default_token_asset_id,
           chat,
-        });
+        };
+        sessionRef.current = nextSession;
+        setSession(nextSession);
 
         setScreen("game");
         onSessionJoined(session_id, member.role);
@@ -128,6 +171,19 @@ export function App({ socket, onSessionJoined }: AppProps) {
 
       if (data.type === "SESSION_ERROR") {
         setSessionError(data.payload.message);
+        return;
+      }
+
+      if (data.type === "SCENE_STATE") {
+        setCurrentSceneId(data.payload.scene_id);
+        setSceneMap(data.payload.map);
+        socket.forwardToGame(data);
+        return;
+      }
+
+      if (data.type === "SCENE_MAP_CHANGED") {
+        setSceneMap(data.payload.map);
+        socket.forwardToGame(data);
         return;
       }
 
@@ -203,9 +259,14 @@ export function App({ socket, onSessionJoined }: AppProps) {
         {reconnectBanner}
         <Login
           error={userError}
-          onLogin={(nickname) => {
+          bootstrapAvailable={adminBootstrapAvailable}
+          onLogin={(identifier, password) => {
             setUserError(null);
-            socket.send({ type: "USER_LOGIN", payload: { nickname } });
+            socket.send({ type: "USER_LOGIN", payload: { identifier, password } });
+          }}
+          onRegister={(email, nickname, password, bootstrap_token) => {
+            setUserError(null);
+            socket.send({ type: "USER_REGISTER", payload: { email, nickname, password, bootstrap_token } });
           }}
         />
       </>
@@ -218,9 +279,17 @@ export function App({ socket, onSessionJoined }: AppProps) {
         {reconnectBanner}
         <Lobby
           nickname={user.nickname}
+          isAdmin={user.is_admin ?? false}
           sessions={user.sessions}
           serverError={sessionError}
+          adminError={adminError}
+          adminUsers={adminUsers}
           socket={socket}
+          onAdminRefresh={refreshAdminUsers}
+          onAdminSetCredentials={(user_id, email, password) => {
+            setAdminError(null);
+            socket.send({ type: "ADMIN_SET_USER_CREDENTIALS", payload: { user_id, email, password } });
+          }}
           onSessionCreate={(name) => {
             setSessionError(null);
             socket.send({ type: "SESSION_CREATE", payload: { name } });
@@ -250,6 +319,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
           role={session.role}
           invite_codes={session.invite_codes}
           default_token_asset_id={session.default_token_asset_id}
+          current_scene_id={currentSceneId}
+          map={sceneMap}
           socket={socket}
           chat={session.chat}
         />

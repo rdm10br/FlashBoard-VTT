@@ -3,6 +3,7 @@ import { App as PixiApp } from "../engine/app";
 import { Grid } from "../engine/grid";
 import { TokenManager } from "../engine/tokenManager";
 import type { ServerMessage } from "@vtt/protocol";
+import { SceneMapLayer } from "../engine/sceneMapLayer";
 import { SocketManager } from "../network/socket";
 import { registerTokenInteractions, type SelectionState } from "./tokenInteractions";
 import { API_ORIGIN } from "../network/apiBase";
@@ -13,6 +14,7 @@ export class GameController {
   private pixiApp: PixiApp;
   private grid!: Grid;
   private tokens!: TokenManager;
+  private maps!: SceneMapLayer;
   private socket: SocketManager;
 
   private currentSceneId: string | null = null;
@@ -35,6 +37,14 @@ export class GameController {
 
     this.grid = new Grid(this.pixiApp.layers.grid);
     this.tokens = new TokenManager(this.pixiApp.layers.tokens);
+    this.maps = new SceneMapLayer(
+      this.pixiApp.layers.background,
+      this.pixiApp.app.stage,
+      (map) => {
+        if (!this.currentSceneId) return;
+        this.socket.send({ type: "SCENE_MAP_SET", payload: { scene_id: this.currentSceneId, ...map } });
+      },
+    );
     this.grid.draw(window.innerWidth, window.innerHeight);
 
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
@@ -49,6 +59,10 @@ export class GameController {
       if (assetId && tokenId && this.canCreateTokens) {
         this.socket.send({ type: "TOKEN_SET_ASSET", payload: { id: tokenId, asset_id: assetId } });
       }
+    });
+    window.addEventListener("vtt-map-edit", (event) => {
+      const editing = (event as CustomEvent<{ editing: boolean }>).detail?.editing;
+      this.maps.setEditing(editing === true && this.canCreateTokens);
     });
 
     this.socket.setGameHandler((data) => this.handleServerMessage(data));
@@ -65,6 +79,7 @@ export class GameController {
   // Chamado pelo App.tsx quando a role do jogador é conhecida (SESSION_JOINED).
   setCanCreateTokens(value: boolean) {
     this.canCreateTokens = value;
+    if (!value) this.maps.setEditing(false);
   }
 
   private onStagePointerMove(event: PIXI.FederatedPointerEvent) {
@@ -116,6 +131,7 @@ export class GameController {
 
     if (data.type === "SCENE_STATE") {
       this.currentSceneId = data.payload.scene_id;
+      void this.maps.setMap(data.payload.map, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
       this.clearTokens();
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
@@ -125,8 +141,15 @@ export class GameController {
       return;
     }
 
+    if (data.type === "SCENE_MAP_CHANGED") {
+      if (data.payload.scene_id !== this.currentSceneId) return;
+      void this.maps.setMap(data.payload.map, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
+      return;
+    }
+
     if (data.type === "SCENE_PUSHED") {
       this.clearTokens();
+      void this.maps.setMap(null, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
       this.currentSceneId = null;
       this.socket.send({ type: "SCENE_SWITCH", payload: { scene_id: data.payload.scene_id } });
       return;

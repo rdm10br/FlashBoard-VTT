@@ -3,6 +3,33 @@ import type Database from "better-sqlite3";
 // Migração incremental: garante que chat_messages tenha as colunas
 // message_type/target/metadata mesmo em bancos criados antes delas existirem.
 export function runMigrations(db: Database.Database) {
+  const userColumns = db.prepare("PRAGMA table_info(users)").all();
+  const userColumnNames = userColumns.map((col: any) => col.name);
+
+  if (!userColumnNames.includes("email")) {
+    db.exec("ALTER TABLE users ADD COLUMN email TEXT;");
+  }
+  if (!userColumnNames.includes("password_hash")) {
+    db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
+  }
+  if (!userColumnNames.includes("is_admin")) {
+    db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;");
+  }
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
+      ON users(email COLLATE NOCASE) WHERE email IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS users_authenticated_nickname_unique
+      ON users(nickname COLLATE NOCASE) WHERE password_hash IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash  TEXT NOT NULL UNIQUE,
+      expires_at  INTEGER NOT NULL,
+      created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
   const chatColumns = db.prepare("PRAGMA table_info(chat_messages)").all();
   const chatColumnNames = chatColumns.map((col: any) => col.name);
 
@@ -30,6 +57,21 @@ export function runMigrations(db: Database.Database) {
   const tokenColumnNames = tokenColumns.map((col: any) => col.name);
   if (!tokenColumnNames.includes("asset_id")) {
     db.exec("ALTER TABLE tokens ADD COLUMN asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
+  }
+
+  const sceneColumns = db.prepare("PRAGMA table_info(scenes)").all();
+  const sceneColumnNames = sceneColumns.map((col: any) => col.name);
+  if (!sceneColumnNames.includes("map_asset_id")) {
+    db.exec("ALTER TABLE scenes ADD COLUMN map_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
+  }
+  if (!sceneColumnNames.includes("map_x")) {
+    db.exec("ALTER TABLE scenes ADD COLUMN map_x REAL NOT NULL DEFAULT 0;");
+  }
+  if (!sceneColumnNames.includes("map_y")) {
+    db.exec("ALTER TABLE scenes ADD COLUMN map_y REAL NOT NULL DEFAULT 0;");
+  }
+  if (!sceneColumnNames.includes("map_scale")) {
+    db.exec("ALTER TABLE scenes ADD COLUMN map_scale REAL NOT NULL DEFAULT 1;");
   }
 
   const needsMigration =

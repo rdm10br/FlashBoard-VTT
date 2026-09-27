@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Role } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneMap } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
 import { ChatPanel } from "./panels/ChatPanel";
+import { MapPanel } from "./panels/MapPanel";
 import { FloatingPanel } from "./panels/FloatingPanel";
 
 type SessionInfoProps = {
@@ -13,13 +14,15 @@ type SessionInfoProps = {
   role: Role;
   invite_codes: InviteCodeSummary[];
   default_token_asset_id: string | null;
+  current_scene_id: string | null;
+  map: SceneMap | null;
   socket: SocketManager;
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, default_token_asset_id, socket, chat }: SessionInfoProps) {
-  const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat">(() => (role === "gm" ? "session" : "tokens"));
-  const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat">(null);
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, default_token_asset_id, current_scene_id, map, socket, chat }: SessionInfoProps) {
+  const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat" | "map">(() => (role === "gm" ? "session" : "tokens"));
+  const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
 
@@ -70,7 +73,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
     document.addEventListener("mouseup", handleStopResize.current);
   }
 
-  function toggleDetach(tab: "session" | "tokens" | "chat", fallback: "session" | "tokens" | "chat") {
+  function toggleDetach(tab: "session" | "tokens" | "chat" | "map", fallback: "session" | "tokens" | "chat" | "map") {
     const next = detachedTab === tab ? null : tab;
     setDetachedTab(next);
     if (next === tab) setActiveTab(fallback);
@@ -81,6 +84,9 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
     <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
   ) : null;
   const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
+  const mapPanelElement = role === "gm"
+    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} socket={socket} />
+    : null;
   const chatPanelElement = (
     <ChatPanel chat={chat} socket={socket} maxHeight={detachedTab === "chat" ? "300px" : "200px"} />
   );
@@ -120,6 +126,14 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
               </button>
             </div>
           )}
+          {role === "gm" && (
+            <button
+              style={{ ...styles.tabBtn, ...(activeTab === "map" ? styles.tabActive : {}) }}
+              onClick={() => setActiveTab("map")}
+            >
+              🗺 Mapa
+            </button>
+          )}
           <div style={{ position: "relative", display: "inline-flex", alignItems: "center", marginRight: 8 }}>
             <button
               style={{ ...styles.tabBtn, ...(activeTab === "tokens" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
@@ -153,6 +167,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
         </div>
 
         {activeTab === "session" && detachedTab !== "session" && invitePanelElement}
+        {activeTab === "map" && detachedTab !== "map" && mapPanelElement}
         {activeTab === "tokens" && detachedTab !== "tokens" && tokenPanelElement}
         {activeTab === "chat" && detachedTab !== "chat" && chatPanelElement}
       </div>
@@ -160,6 +175,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
       {detachedTab && (
         <FloatingPanel onClose={() => setDetachedTab(null)} title={detachedTab}>
           {detachedTab === "session" && invitePanelElement}
+          {detachedTab === "map" && mapPanelElement}
           {detachedTab === "tokens" && tokenPanelElement}
           {detachedTab === "chat" && chatPanelElement}
         </FloatingPanel>

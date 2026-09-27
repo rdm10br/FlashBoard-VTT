@@ -1,7 +1,7 @@
 import db from "./connection.js";
 import type { SessionBackup } from "./types.js";
 import { getSession, getSessionByName, createSession } from "./sessionRepo.js";
-import { getUserById, getOrCreateUserByNickname } from "./userRepo.js";
+import { getUserById, getUserByNickname, getOrCreateUserByNickname, createUser, hasUserCredentials } from "./userRepo.js";
 import { createMembership, getMembersForSession } from "./membershipRepo.js";
 import { createInviteCode, getInviteCodesForSession, setInviteUseCount } from "./inviteRepo.js";
 import { createScene, getScenesForSession, setSceneVisibility } from "./sceneRepo.js";
@@ -43,61 +43,62 @@ export function getSessionBackup(sessionId: string) {
   };
 }
 
-export function importSessionBackup(backup: SessionBackup, targetName?: string) {
-  const baseName = (targetName?.trim() || backup.session_name).trim();
-  let name = baseName;
-  let suffix = 1;
-  while (getSessionByName(name)) {
-    name = `${baseName}-${suffix}`;
-    suffix += 1;
-  }
-
-  const owner = getOrCreateUserByNickname(backup.owner_nickname);
-  const session = createSession(name, owner.id);
-  createMembership(owner.id, session.id, 'gm');
-
-  const userIds = new Map<string, string>();
-  userIds.set(owner.nickname, owner.id);
-
-  for (const member of backup.members) {
-    if (member.nickname === owner.nickname) continue;
-    const user = getOrCreateUserByNickname(member.nickname);
-    userIds.set(user.nickname, user.id);
-    createMembership(user.id, session.id, member.role);
-  }
-
-  const sceneIds = new Map<string, string>();
-  for (const scene of backup.scenes) {
-    const created = createScene(session.id, scene.name);
-    if (scene.is_visible) setSceneVisibility(created.id, true);
-    sceneIds.set(scene.name, created.id);
-  }
-
-  for (const token of backup.tokens) {
-    const sceneId = sceneIds.get(token.scene_name);
-    if (!sceneId) continue;
-    createToken(sceneId, token.x, token.y);
-  }
-
-  for (const message of backup.chat_messages) {
-    getOrCreateUserByNickname(message.sender);
-    createChatMessage(session.id, message.sender, message.text, message.timestamp);
-  }
-
-  const codes: string[] = [];
-  for (const invite of backup.invite_codes) {
-    const code = createInviteCode({
-      sessionId: session.id,
-      role: invite.role,
-      createdBy: owner.id,
-      maxUses: invite.max_uses ?? undefined,
-      expiresAt: invite.expires_at ?? undefined,
-    });
-    if (invite.use_count > 0) {
-      setInviteUseCount(code, invite.use_count);
+export function importSessionBackup(backup: SessionBackup, targetName: string | undefined, importerId: string) {
+  return db.transaction(() => {
+    const baseName = (targetName?.trim() || backup.session_name).trim();
+    let name = baseName;
+    let suffix = 1;
+    while (getSessionByName(name)) {
+      name = `${baseName}-${suffix}`;
+      suffix += 1;
     }
-    codes.push(code);
-  }
 
-  return { session, invite_codes: codes };
+    const owner = getUserById(importerId);
+    if (!owner) throw new Error("A conta que solicitou a importação não existe.");
+    const session = createSession(name, owner.id);
+    createMembership(owner.id, session.id, "gm");
+
+    for (const member of backup.members) {
+      if (member.nickname.toLowerCase() === backup.owner_nickname.toLowerCase()) continue;
+      const existing = getUserByNickname(member.nickname);
+      if (existing && hasUserCredentials(existing.id)) continue;
+      const user = existing ?? createUser(member.nickname);
+      if (user.id !== owner.id) createMembership(user.id, session.id, member.role);
+    }
+
+    const sceneIds = new Map<string, string>();
+    for (const scene of backup.scenes) {
+      const created = createScene(session.id, scene.name);
+      if (scene.is_visible) setSceneVisibility(created.id, true);
+      sceneIds.set(scene.name, created.id);
+    }
+
+    for (const token of backup.tokens) {
+      const sceneId = sceneIds.get(token.scene_name);
+      if (!sceneId) continue;
+      createToken(sceneId, token.x, token.y);
+    }
+
+    for (const message of backup.chat_messages) {
+      getOrCreateUserByNickname(message.sender);
+      createChatMessage(session.id, message.sender, message.text, message.timestamp);
+    }
+
+    const codes: string[] = [];
+    for (const invite of backup.invite_codes) {
+      const code = createInviteCode({
+        sessionId: session.id,
+        role: invite.role,
+        createdBy: owner.id,
+        maxUses: invite.max_uses ?? undefined,
+        expiresAt: invite.expires_at ?? undefined,
+      });
+      if (invite.use_count > 0) {
+        setInviteUseCount(code, invite.use_count);
+      }
+      codes.push(code);
+    }
+
+    return { session, invite_codes: codes };
+  })();
 }

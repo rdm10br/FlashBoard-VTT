@@ -1,4 +1,5 @@
 import type { InviteCodeSummary, Role, SessionJoinedPayload } from "@vtt/protocol";
+import db from "../db/connection.js";
 import type { Membership, Session } from "../db/index.js";
 import {
   createMembership,
@@ -86,9 +87,11 @@ export function createSessionForUser(
   nickname: string,
   name: string
 ): SessionJoinResult {
-  const session = createSession(name, userId);
-  const membership = createMembership(userId, session.id, "gm");
-  return { session, membership };
+  return db.transaction(() => {
+    const session = createSession(name, userId);
+    const membership = createMembership(userId, session.id, "gm");
+    return { session, membership };
+  })();
 }
 
 export function joinSessionByCode(

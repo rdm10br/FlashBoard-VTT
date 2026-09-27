@@ -1,4 +1,5 @@
 import type { Role } from "../db/index.js";
+import type { SceneMap } from "@vtt/protocol";
 import { createScene, getScene, setSceneVisibility, createToken, getTokensForScene, moveToken, setTokenAsset } from "../db/index.js";
 
 export function createSceneForSession(sessionId: string, name: string) {
@@ -8,8 +9,18 @@ export function createSceneForSession(sessionId: string, name: string) {
 }
 
 export function getSceneState(sceneId: string) {
+  const scene = getScene(sceneId);
+  if (!scene) return { scene_id: sceneId, tokens: [], map: null };
   const tokens = getTokensForScene(sceneId);
-  return { scene_id: sceneId, tokens };
+  const map: SceneMap | null = scene.map_asset_id && scene.map_asset_kind === "map_image"
+    ? {
+        asset_id: scene.map_asset_id,
+        x: scene.map_x,
+        y: scene.map_y,
+        scale: scene.map_scale,
+      }
+    : null;
+  return { scene_id: sceneId, tokens, map };
 }
 
 export function canEnterScene(sceneId: string, session_id: string, role: Role) {

@@ -5,6 +5,17 @@ export function createSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS users (
       id          TEXT PRIMARY KEY,
       nickname    TEXT NOT NULL UNIQUE,
+      email       TEXT,
+      password_hash TEXT,
+      is_admin    INTEGER NOT NULL DEFAULT 0,
+      created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash  TEXT NOT NULL UNIQUE,
+      expires_at  INTEGER NOT NULL,
       created_at  INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
@@ -45,6 +56,10 @@ export function createSchema(db: Database.Database) {
       session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       name        TEXT NOT NULL,
       is_visible  INTEGER NOT NULL DEFAULT 0,
+      map_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
+      map_x       REAL NOT NULL DEFAULT 0,
+      map_y       REAL NOT NULL DEFAULT 0,
+      map_scale   REAL NOT NULL DEFAULT 1,
       created_at  INTEGER NOT NULL DEFAULT (unixepoch())
     );
 

@@ -8,7 +8,9 @@ import { getSessionBackup, importSessionBackup, createAsset, getAsset, getSessio
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
+import { isAdminBootstrapAvailable, isAuthSessionActive } from "./services/authService.js";
 import { randomUUID } from "crypto";
+import { isIP } from "net";
 import { consumeGrant } from "./state/grants.js";
 import multipart from "@fastify/multipart";
 import { createWriteStream } from "fs";
@@ -84,14 +86,18 @@ const start = async () => {
     const session_id = query?.session_id;
     const kind = query?.kind;
 
-    if (!token || !session_id || !consumeGrant(token, "asset_upload", session_id)) {
-      reply.code(401);
-      return { error: "Token de upload inválido, expirado ou já utilizado." };
-    }
-
     if (kind !== "token_image" && kind !== "map_image") {
       reply.code(400);
       return { error: "Tipo de asset inválido." };
+    }
+
+    const grant =
+      token && session_id
+        ? consumeGrant(token, "asset_upload", session_id, kind)
+        : undefined;
+    if (!grant || !session_id) {
+      reply.code(401);
+      return { error: "Token de upload inválido, expirado ou já utilizado." };
     }
 
     const file = await request.file();
@@ -164,7 +170,8 @@ const start = async () => {
     const session_id = (request.params as { session_id: string }).session_id;
     const token = (request.query as Record<string, string> | undefined)?.token;
 
-    if (!token || !consumeGrant(token, "export", session_id)) {
+    const grant = token ? consumeGrant(token, "export", session_id) : undefined;
+    if (!grant) {
       reply.code(401);
       return { error: "Token de exportação inválido, expirado ou já utilizado." };
     }
@@ -186,7 +193,8 @@ const start = async () => {
   app.post("/backup/session/import", async (request, reply) => {
     const token = (request.query as Record<string, string> | undefined)?.token;
 
-    if (!token || !consumeGrant(token, "import")) {
+    const grant = token ? consumeGrant(token, "import") : undefined;
+    if (!grant) {
       reply.code(401);
       return { error: "Token de importação inválido, expirado ou já utilizado." };
     }
@@ -197,7 +205,7 @@ const start = async () => {
       return { error: "Backup inválido." };
     }
 
-    const result = importSessionBackup(body, body.target_name);
+    const result = importSessionBackup(body, body.target_name, grant.user_id);
     return { session_id: result.session.id, session_name: result.session.name, invite_codes: result.invite_codes };
   });
 
@@ -210,6 +218,13 @@ const start = async () => {
   const HEARTBEAT_INTERVAL = 25_000;
 
   const heartbeat = setInterval(() => {
+    for (const state of clientRegistry.allClients()) {
+      if (state.user_id && state.auth_token && !isAuthSessionActive(state.user_id, state.auth_token)) {
+        clientRegistry.clearAuthentication(state);
+        send(state.ws, { type: "USER_LOGGED_OUT", payload: {} });
+      }
+    }
+
     wss.clients.forEach((ws) => {
       const client = ws as WebSocket & { isAlive?: boolean };
       if (client.isAlive === false) {
@@ -224,17 +239,28 @@ const start = async () => {
 
   wss.on("close", () => clearInterval(heartbeat));
 
-  wss.on("connection", (ws: WebSocket) => {
+  wss.on("connection", (ws: WebSocket, request) => {
     console.log("Client conectado");
 
     // Marca como vivo ao conectar e a cada pong recebido
     (ws as WebSocket & { isAlive: boolean }).isAlive = true;
     ws.on("pong", () => { (ws as WebSocket & { isAlive: boolean }).isAlive = true; });
 
+    const cloudflareClientIp = request.headers["cf-connecting-ip"];
+    const trustedClientIp =
+      process.env.TRUST_PROXY_HEADERS === "true" &&
+      typeof cloudflareClientIp === "string" &&
+      isIP(cloudflareClientIp)
+        ? cloudflareClientIp
+        : undefined;
+
     const state: ClientState = {
       ws,
       user_id: null,
       nickname: "",
+      auth_token: null,
+      auth_client_key: trustedClientIp ?? request.socket.remoteAddress ?? "unknown",
+      is_admin: false,
       session_id: null,
       role: "player",
       scene_id: null,
@@ -242,7 +268,10 @@ const start = async () => {
 
     clientRegistry.add(state);
     // send(ws, { type: "CONNECTED" });
-    send(ws, { type: "CONNECTED", payload: { boot_id: BOOT_ID } });
+    send(ws, {
+      type: "CONNECTED",
+      payload: { boot_id: BOOT_ID, admin_bootstrap_available: isAdminBootstrapAvailable() },
+    });
 
     ws.on("message", (raw) => {
       const text = raw.toString();
@@ -260,11 +289,10 @@ const start = async () => {
         return;
       }
 
-      try {
-        dispatch(data, state, ws);
-      } catch (err) {
+      void dispatch(data, state, ws).catch((err) => {
         console.error("Erro inesperado no dispatch:", err);
-      }
+        send(ws, { type: "USER_ERROR", payload: { message: "Erro interno ao processar a mensagem." } });
+      });
     });
 
     ws.on("close", () => {

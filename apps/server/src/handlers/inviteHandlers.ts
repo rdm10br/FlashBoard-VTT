@@ -10,6 +10,7 @@ function handleInviteCreate(payload: CreateInvitePayload, ctx: HandlerContext) {
   if (!payload || !payload.role) return;
 
   const { role, max_uses, expires_at } = payload;
+  if (role !== "gm" && role !== "player" && role !== "viewer") return;
   const code = createInviteCode({
     sessionId: state.session_id!,
     role,
@@ -28,6 +29,8 @@ function handleInviteDelete(payload: { code: string }, ctx: HandlerContext) {
   const { state } = ctx;
   if (state.role !== "gm") return;
   if (!payload?.code || typeof payload.code !== "string") return;
+  const invite = getInviteCode(payload.code);
+  if (!invite || invite.session_id !== state.session_id) return;
   deleteInviteCode(payload.code);
   broadcastToSession(state.session_id!, { type: "INVITE_DELETED", payload: { code: payload.code } });
 }

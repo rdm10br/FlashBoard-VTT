@@ -13,7 +13,7 @@ function isTokenImageFromCurrentSession(assetId: string | undefined, sessionId: 
 function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: number; asset_id?: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
-  if (!payload || typeof payload.scene_id !== "string" || typeof payload.x !== "number" || typeof payload.y !== "number") return;
+  if (!payload || typeof payload.scene_id !== "string" || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
   const scene = getScene(payload.scene_id);
   if (!scene || scene.session_id !== state.session_id) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Cena inválida para criar token." } });
@@ -35,12 +35,21 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
-  if (!payload || typeof payload.id !== "string" || typeof payload.x !== "number" || typeof payload.y !== "number") return;
+  if (!payload || typeof payload.id !== "string" || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
   const { id, x, y } = payload;
-  moveTokenOnScene(id, x, y);
-  if (state.scene_id) {
-    broadcastToScene(state.scene_id, { type: "TOKEN_MOVE", payload: { id, x, y } }, ws);
+  const token = getToken(id);
+  const scene = token ? getScene(token.scene_id) : undefined;
+  if (
+    !token ||
+    !scene ||
+    scene.session_id !== state.session_id ||
+    token.scene_id !== state.scene_id
+  ) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Token inválido para esta sessão ou cena." } });
+    return;
   }
+  moveTokenOnScene(id, x, y);
+  broadcastToScene(token.scene_id, { type: "TOKEN_MOVE", payload: { id, x, y } }, ws);
 }
 
 export const tokenHandlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {

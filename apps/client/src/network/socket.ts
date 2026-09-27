@@ -1,4 +1,5 @@
 import type { ClientMessage, ServerMessage } from "@vtt/protocol";
+import type { UploadAssetKind } from "@vtt/protocol";
 
 export type ConnectionStatus = "connecting" | "open" | "reconnecting" | "closed";
 
@@ -9,8 +10,9 @@ export class SocketManager {
   private gameHandler: ((data: ServerMessage) => void) | null = null;
   private statusHandler: ((status: ConnectionStatus) => void) | null = null;
   private backupHandler: ((data: ServerMessage) => void) | null = null;
-  private assetUploadHandler: ((data: ServerMessage) => void) | null = null;
+  private assetUploadHandlers = new Map<UploadAssetKind, (data: ServerMessage) => void>();
   private queue: ClientMessage[] = [];
+  private pendingMessages: ServerMessage[] = [];
   
   setBackupHandler(handler: ((data: ServerMessage) => void) | null) {
     this.backupHandler = handler;
@@ -20,12 +22,15 @@ export class SocketManager {
     this.backupHandler?.(data);
   }
 
-  setAssetUploadHandler(handler: ((data: ServerMessage) => void) | null) {
-    this.assetUploadHandler = handler;
+  setAssetUploadHandler(kind: UploadAssetKind, handler: ((data: ServerMessage) => void) | null) {
+    if (handler) this.assetUploadHandlers.set(kind, handler);
+    else this.assetUploadHandlers.delete(kind);
   }
 
   forwardToAssetUpload(data: ServerMessage) {
-    this.assetUploadHandler?.(data);
+    if (data.type !== "BACKUP_GRANT_ISSUED" || data.payload.kind !== "asset_upload") return;
+    const kind = data.payload.asset_kind ?? "token_image";
+    this.assetUploadHandlers.get(kind)?.(data);
   }
 
   // Backoff exponencial: 1s, 2s, 4s, 8s, 16s, 30s (teto)
@@ -58,8 +63,9 @@ export class SocketManager {
     this.socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data) as ServerMessage;
-        console.debug("WS recv:", data.type, (data as Record<string, unknown>).payload ?? "");
-        this.messageHandler?.(data);
+        console.debug("WS recv:", data.type);
+        if (this.messageHandler) this.messageHandler(data);
+        else this.pendingMessages.push(data);
       } catch {
         console.warn("Mensagem WS inválida recebida, ignorando.");
       }
@@ -97,6 +103,9 @@ export class SocketManager {
   ) {
     this.messageHandler = onMessage;
     this.statusHandler = onStatusChange ?? null;
+    for (const message of this.pendingMessages.splice(0)) {
+      this.messageHandler(message);
+    }
   }
 
   setGameHandler(handler: (data: ServerMessage) => void) {

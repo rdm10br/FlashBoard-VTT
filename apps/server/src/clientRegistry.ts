@@ -5,6 +5,9 @@ export type ClientState = {
   ws: WebSocket;
   user_id: string | null;
   nickname: string;
+  auth_token: string | null;
+  auth_client_key: string;
+  is_admin: boolean;
   session_id: string | null;
   role: Role;
   scene_id: string | null;
@@ -25,9 +28,23 @@ class ClientRegistry {
     this.removeFromScene(state);
   }
 
+  allClients(): ClientState[] {
+    return [...this.all];
+  }
+
+  clearAuthentication(state: ClientState) {
+    this.setSession(state, null);
+    state.user_id = null;
+    state.nickname = "";
+    state.auth_token = null;
+    state.is_admin = false;
+    state.role = "player";
+  }
+
   // Troca a sessão do client, atualizando o índice. Passe null para sair de qualquer sessão.
   setSession(state: ClientState, session_id: string | null) {
     this.removeFromSession(state);
+    this.setScene(state, null);
     state.session_id = session_id;
     if (session_id) {
       this.getOrCreate(this.bySession, session_id).add(state);
@@ -50,6 +67,10 @@ class ClientRegistry {
 
   inScene(scene_id: string): ClientState[] {
     return [...(this.byScene.get(scene_id) ?? [])];
+  }
+
+  inUser(user_id: string): ClientState[] {
+    return [...this.all].filter((state) => state.user_id === user_id);
   }
 
   private removeFromSession(state: ClientState) {

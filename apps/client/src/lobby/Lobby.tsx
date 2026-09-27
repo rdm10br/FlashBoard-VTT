@@ -1,15 +1,21 @@
 import { useState, useEffect, useRef } from "react";
-import type { Role } from "@vtt/protocol";
+import type { AdminUserSummary, Role } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { API_ORIGIN } from "../network/apiBase";
+import { AdminPanel } from "./AdminPanel";
 
 type Tab = "create" | "join";
 
 type LobbyProps = {
   nickname: string;
+  isAdmin: boolean;
   sessions: { id: string; name: string; owner_id: string; role: Role }[];
   serverError?: string | null;
+  adminError?: string | null;
+  adminUsers: AdminUserSummary[];
   socket: SocketManager; // NOVO
+  onAdminRefresh: () => void;
+  onAdminSetCredentials: (userId: string, email: string, password: string) => void;
   onSessionCreate: (name: string) => void;
   onSessionJoin: (code: string) => void;
   onSessionEnter: (session_id: string) => void;
@@ -18,9 +24,14 @@ type LobbyProps = {
 
 export function Lobby({
   nickname,
+  isAdmin,
   sessions,
   serverError,
+  adminError,
+  adminUsers,
   socket,
+  onAdminRefresh,
+  onAdminSetCredentials,
   onSessionCreate,
   onSessionJoin,
   onSessionEnter,
@@ -97,6 +108,15 @@ export function Lobby({
             <button style={styles.logoutBtn} onClick={onLogout}>Sair</button>
           </div>
         </div>
+
+        {isAdmin && (
+          <AdminPanel
+            users={adminUsers}
+            error={adminError}
+            onRefresh={onAdminRefresh}
+            onSetCredentials={onAdminSetCredentials}
+          />
+        )}
 
         {/* Sessões existentes */}
         {sessions.length > 0 && (

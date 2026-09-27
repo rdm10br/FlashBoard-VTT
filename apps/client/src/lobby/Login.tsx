@@ -1,55 +1,128 @@
 import { useState } from "react";
-import { isRememberEnabled, setRememberEnabled } from "../network/authStorage";
 
 type LoginProps = {
-  onLogin: (nickname: string) => void;
+  onLogin: (identifier: string, password: string) => void;
+  onRegister: (email: string, nickname: string, password: string, bootstrapToken?: string) => void;
+  bootstrapAvailable: boolean;
   error?: string | null;
 };
 
-export function Login({ onLogin, error }: LoginProps) {
+export function Login({ onLogin, onRegister, bootstrapAvailable, error }: LoginProps) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
+  const [password, setPassword] = useState("");
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
-  const [remember, setRemember] = useState(isRememberEnabled());
 
-  function handle() {
-    if (!nickname.trim()) { setLocalError("Digite um apelido."); return; }
+  function handleSubmit() {
     setLocalError(null);
-    setRememberEnabled(remember);
-    onLogin(nickname.trim());
+    if (mode === "login") {
+      if (!identifier.trim() || !password) {
+        setLocalError("Informe e-mail ou apelido e senha.");
+        return;
+      }
+      onLogin(identifier.trim(), password);
+      return;
+    }
+
+    if (!email.trim() || !nickname.trim() || !password) {
+      setLocalError("Preencha e-mail, apelido e senha.");
+      return;
+    }
+    if (password.length < 12) {
+      setLocalError("A senha deve ter pelo menos 12 caracteres.");
+      return;
+    }
+    onRegister(email.trim(), nickname.trim(), password, bootstrapToken || undefined);
+  }
+
+  function switchMode(next: "login" | "register") {
+    setMode(next);
+    setLocalError(null);
   }
 
   return (
     <div style={styles.overlay}>
       <div style={styles.card}>
         <h1 style={styles.title}>⚔️ VTT</h1>
-        <p style={styles.subtitle}>Digite seu apelido para entrar</p>
-
-        <div style={styles.field}>
-          <input
-            style={styles.input}
-            placeholder="Seu apelido"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handle()}
-            autoFocus
-          />
+        <div style={styles.tabs}>
+          <button style={{ ...styles.tab, ...(mode === "login" ? styles.activeTab : {}) }} onClick={() => switchMode("login")}>
+            Entrar
+          </button>
+          <button style={{ ...styles.tab, ...(mode === "register" ? styles.activeTab : {}) }} onClick={() => switchMode("register")}>
+            Criar conta
+          </button>
         </div>
 
-        {(localError || error) && (
-          <p style={styles.error}>{localError || error}</p>
+        {mode === "login" ? (
+          <>
+            <label style={styles.field}>
+              <span>E-mail ou apelido</span>
+              <input
+                style={styles.input}
+                autoComplete="username"
+                value={identifier}
+                onChange={(event) => setIdentifier(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && handleSubmit()}
+                autoFocus
+              />
+            </label>
+            <label style={styles.field}>
+              <span>Senha</span>
+              <input
+                style={styles.input}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && handleSubmit()}
+              />
+            </label>
+          </>
+        ) : (
+          <>
+            <label style={styles.field}>
+              <span>E-mail</span>
+              <input style={styles.input} type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            </label>
+            <label style={styles.field}>
+              <span>Apelido</span>
+              <input style={styles.input} autoComplete="username" maxLength={32} value={nickname} onChange={(event) => setNickname(event.target.value)} />
+            </label>
+            <label style={styles.field}>
+              <span>Senha (mínimo 12 caracteres)</span>
+              <input
+                style={styles.input}
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && handleSubmit()}
+              />
+            </label>
+            {bootstrapAvailable && (
+              <label style={styles.field}>
+                <span>Código de criação do primeiro administrador</span>
+                <input
+                  style={styles.input}
+                  type="password"
+                  autoComplete="off"
+                  value={bootstrapToken}
+                  onChange={(event) => setBootstrapToken(event.target.value)}
+                />
+              </label>
+            )}
+            <p style={styles.note}>
+              Contas antigas não podem ser acessadas apenas pelo apelido. Peça a um administrador para associá-las com segurança.
+            </p>
+          </>
         )}
 
-        <label style={styles.checkboxRow}>
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-          />
-          Lembrar login neste dispositivo
-        </label>
-
-        <button style={styles.btn} onClick={handle}>
-          Entrar
+        {(localError || error) && <p style={styles.error}>{localError || error}</p>}
+        <button style={styles.btn} onClick={handleSubmit}>
+          {mode === "login" ? "Entrar" : "Criar conta"}
         </button>
       </div>
     </div>
@@ -70,12 +143,14 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#1f2028",
     border: "1px solid #2e303a",
     borderRadius: "12px",
-    padding: "40px",
+    padding: "32px",
     width: "100%",
-    maxWidth: "360px",
+    maxWidth: "380px",
     display: "flex",
     flexDirection: "column",
     gap: "16px",
+    maxHeight: "90vh",
+    overflowY: "auto",
   },
   title: {
     margin: 0,
@@ -84,17 +159,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     textAlign: "center",
   },
-  subtitle: {
-    margin: 0,
+  tabs: { display: "flex", gap: "8px" },
+  tab: {
+    flex: 1,
+    padding: "8px",
+    background: "transparent",
+    border: "1px solid #2e303a",
+    borderRadius: "6px",
     color: "#9ca3af",
-    fontSize: "14px",
-    textAlign: "center",
+    cursor: "pointer",
   },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-  },
+  activeTab: { borderColor: "#aa3bff", color: "#f3f4f6" },
+  field: { display: "flex", flexDirection: "column", gap: "6px", color: "#9ca3af", fontSize: "13px" },
   input: {
     padding: "10px 12px",
     background: "#16171d",
@@ -104,11 +180,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "15px",
     outline: "none",
   },
-  error: {
-    margin: 0,
-    color: "#f87171",
-    fontSize: "13px",
-  },
+  error: { margin: 0, color: "#f87171", fontSize: "13px" },
+  note: { margin: 0, color: "#9ca3af", fontSize: "12px", lineHeight: 1.5 },
   btn: {
     padding: "12px",
     background: "#aa3bff",
@@ -119,12 +192,4 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     cursor: "pointer",
   },
-  checkboxRow: {
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-  color: "#9ca3af",
-  fontSize: "13px",
-  cursor: "pointer",
-},
 };
