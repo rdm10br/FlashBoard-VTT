@@ -11,6 +11,7 @@ export type Session = {
   default_token_asset_id: string | null;
   max_dice_count?: number;
   max_dice_sides?: number;
+  asset_key: string;
   created_at: number;
 };
 

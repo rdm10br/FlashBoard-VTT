@@ -16,6 +16,7 @@ export function createSchema(db: Database.Database) {
       default_token_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
       max_dice_count  INTEGER NOT NULL DEFAULT 100,
       max_dice_sides  INTEGER NOT NULL DEFAULT 100,
+      asset_key       TEXT,
       created_at      INTEGER NOT NULL DEFAULT (unixepoch())
     );
 

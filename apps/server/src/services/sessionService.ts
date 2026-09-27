@@ -24,15 +24,15 @@ export type SessionJoinOutcome =
   | { result: SessionJoinResult };
 
 // function toInviteSummary(inv: InviteCode | undefined): InviteCodeSummary | null {
-  // if (!inv) return null;
-  // return {
-    // code: inv.code,
-    // role: inv.role,
-    // use_count: inv.use_count,
-    // max_uses: inv.max_uses,
-    // expires_at: inv.expires_at,
-    // created_at: inv.created_at,
-  // };
+//   if (!inv) return null;
+//   return {
+//     code: inv.code,
+//     role: inv.role,
+//     use_count: inv.use_count,
+//     max_uses: inv.max_uses,
+//     expires_at: inv.expires_at,
+//     created_at: inv.created_at,
+//   };
 // }
 
 function resolveScenes(sessionId: string, role: Role) {
@@ -73,6 +73,7 @@ export function buildSessionJoinedPayload(
     invite_codes: rawInviteCodes
       .map(toInviteSummary)
       .filter((item): item is InviteCodeSummary => item !== null),
+    asset_key: session.asset_key,
     scenes: sceneList,
     active_scene_id,
     default_token_asset_id: session.default_token_asset_id,

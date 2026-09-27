@@ -26,6 +26,12 @@ export function runMigrations(db: Database.Database) {
     db.exec("ALTER TABLE sessions ADD COLUMN default_token_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
   }
 
+  if (!sessionColumnNames.includes("asset_key")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN asset_key TEXT;");
+    // Backfill: sessões criadas antes dessa coluna existir recebem uma chave gerada em SQL puro.
+    db.exec("UPDATE sessions SET asset_key = lower(hex(randomblob(16))) WHERE asset_key IS NULL;");
+  }
+
   const tokenColumns = db.prepare("PRAGMA table_info(tokens)").all();
   const tokenColumnNames = tokenColumns.map((col: any) => col.name);
   if (!tokenColumnNames.includes("asset_id")) {

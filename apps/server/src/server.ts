@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import { WebSocketServer, WebSocket } from "ws";
 import type { ClientMessage } from "@vtt/protocol";
-import { getSessionBackup, importSessionBackup, createAsset, getAsset, type SessionBackup } from "./db/index.js";
+import { getSessionBackup, importSessionBackup, createAsset, getAsset, getSession, type SessionBackup } from "./db/index.js";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
@@ -112,6 +112,7 @@ const start = async () => {
     try {
       await pipeline(file.file, createWriteStream(diskPath));
     } catch {
+      await fs.promises.unlink(diskPath).catch(() => {});
       reply.code(500);
       return { error: "Falha ao salvar o arquivo." };
     }
@@ -140,11 +141,20 @@ const start = async () => {
 
   app.get("/assets/:id", async (request, reply) => {
     const id = (request.params as { id: string }).id;
+    const key = (request.query as Record<string, string> | undefined)?.key;
+
     const asset = getAsset(id);
     if (!asset) {
       reply.code(404);
       return { error: "Asset não encontrado." };
     }
+
+    const session = getSession(asset.session_id);
+    if (!session || !key || key !== session.asset_key) {
+      reply.code(401);
+      return { error: "Acesso não autorizado a este asset." };
+    }
+
     const filePath = path.join(UPLOADS_DIR, asset.path);
     reply.type(asset.mime_type);
     return reply.send(fs.createReadStream(filePath));
