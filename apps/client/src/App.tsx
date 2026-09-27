@@ -20,7 +20,6 @@ type SessionData = {
   nickname: string;
   role: Role;
   invite_codes: InviteCodeSummary[];
-  asset_key: string;
   default_token_asset_id: string | null;
   chat?: ChatMessage[];
 };
@@ -101,7 +100,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       if (data.type === "SESSION_JOINED") {
-        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat, asset_key } = data.payload;
+        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat } = data.payload;
 
         setSession({
           session_id,
@@ -110,7 +109,6 @@ export function App({ socket, onSessionJoined }: AppProps) {
           role: member.role,
           invite_codes,
           default_token_asset_id,
-          asset_key,
           chat,
         });
 
