@@ -2,23 +2,23 @@ import * as PIXI from "pixi.js";
 import type { Grid } from "../engine/grid";
 
 export type SelectionState = {
-  selectedToken: PIXI.Graphics | null;
+  selectedToken: PIXI.Container | null;
   isDragging: boolean;
   dragOffset: { x: number; y: number };
 };
 
 type TokenInteractionDeps = {
   grid: Grid;
-  highlights: Map<PIXI.Graphics, PIXI.Graphics>;
+  highlights: Map<PIXI.Container, PIXI.Graphics>;
   selection: SelectionState;
-  getTokenId: (token: PIXI.Graphics) => string | undefined;
+  getTokenId: (token: PIXI.Container) => string | undefined;
   onMoveCommitted: (id: string, x: number, y: number) => void;
 };
 
 // Registra os handlers de seleção/drag de um token individual.
 // Toda a coordenação entre tokens (qual está selecionado, offset do drag)
 // vive no objeto `selection`, compartilhado por referência com o GameController.
-export function registerTokenInteractions(token: PIXI.Graphics, deps: TokenInteractionDeps) {
+export function registerTokenInteractions(token: PIXI.Container, deps: TokenInteractionDeps) {
   const { grid, highlights, selection, getTokenId, onMoveCommitted } = deps;
 
   token.cursor = "pointer";

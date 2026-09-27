@@ -8,6 +8,7 @@ export type Session = {
   name: string;
   owner_id: string;
   active_scene_id: string | null;
+  default_token_asset_id: string | null;
   max_dice_count?: number;
   max_dice_sides?: number;
   created_at: number;

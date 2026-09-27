@@ -18,6 +18,7 @@ dist-ssr
 *.db*
 *.env*
 tunnel-config.yml
+**/uploads/*
 
 # Editor directories and files
 # .vscode/*

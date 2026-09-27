@@ -21,18 +21,11 @@ function runBuild(label, args) {
   }
 }
 
-// --- Passo 1: builda só o que estiver faltando ---
-if (!existsSync(CLIENT_INDEX)) {
-  runBuild("client", ["--workspace", "apps/client", "run", "build"]);
-} else {
-  console.log("✓ Build do client já existe, pulando.");
-}
-
-if (!existsSync(SERVER_ENTRY)) {
-  runBuild("server", ["--workspace", "apps/server", "run", "build"]);
-} else {
-  console.log("✓ Build do server já existe, pulando.");
-}
+// --- Passo 1: recompila sempre ---
+// O host serve os arquivos em dist; reutilizá-los apenas porque existem faz a
+// aplicação executar uma versão antiga depois de qualquer alteração em src.
+runBuild("client", ["--workspace", "apps/client", "run", "build"]);
+runBuild("server", ["--workspace", "apps/server", "run", "build"]);
 
 // --- Passo 2: garante que o binário do cloudflared está instalado ---
 if (!existsSync(cloudflaredBin)) {

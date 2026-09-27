@@ -22,6 +22,16 @@ export function runMigrations(db: Database.Database) {
     db.exec("ALTER TABLE sessions ADD COLUMN active_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL;");
   }
 
+  if (!sessionColumnNames.includes("default_token_asset_id")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN default_token_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
+  }
+
+  const tokenColumns = db.prepare("PRAGMA table_info(tokens)").all();
+  const tokenColumnNames = tokenColumns.map((col: any) => col.name);
+  if (!tokenColumnNames.includes("asset_id")) {
+    db.exec("ALTER TABLE tokens ADD COLUMN asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
+  }
+
   const needsMigration =
     !chatColumnNames.includes("message_type") ||
     !chatColumnNames.includes("target") ||

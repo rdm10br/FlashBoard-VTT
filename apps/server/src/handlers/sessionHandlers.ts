@@ -1,7 +1,7 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getSessionByName } from "../db/index.js";
-import { send, sendSceneState } from "../ws/broadcast.js";
+import { getAsset, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
+import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { activeScenesPerSession } from "../state/activeScenes";
 import {
@@ -102,8 +102,29 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
   }
 }
 
+function handleSessionSetDefaultTokenAsset(payload: { asset_id: string | null }, ctx: HandlerContext) {
+  const { state, ws } = ctx;
+  if (state.role !== "gm") {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode definir a imagem padrão." } });
+    return;
+  }
+  if (!payload || (payload.asset_id !== null && typeof payload.asset_id !== "string")) return;
+
+  if (payload.asset_id !== null) {
+    const asset = getAsset(payload.asset_id);
+    if (!asset || asset.session_id !== state.session_id || asset.kind !== "token_image") {
+      send(ws, { type: "SESSION_ERROR", payload: { message: "Imagem padrão inválida para esta sessão." } });
+      return;
+    }
+  }
+
+  setDefaultTokenAsset(state.session_id!, payload.asset_id);
+  broadcastToSession(state.session_id!, { type: "SESSION_DEFAULT_TOKEN_ASSET_CHANGED", payload: { asset_id: payload.asset_id } });
+}
+
 export const sessionHandlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   SESSION_CREATE: handleSessionCreate,
   SESSION_JOIN: handleSessionJoin,
   SESSION_ENTER: handleSessionEnter,
+  SESSION_SET_DEFAULT_TOKEN_ASSET: handleSessionSetDefaultTokenAsset,
 };

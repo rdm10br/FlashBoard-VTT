@@ -1,5 +1,5 @@
 import type { Role } from "../db/index.js";
-import { createScene, getScene, setSceneVisibility, createToken, getTokensForScene, moveToken } from "../db/index.js";
+import { createScene, getScene, setSceneVisibility, createToken, getTokensForScene, moveToken, setTokenAsset } from "../db/index.js";
 
 export function createSceneForSession(sessionId: string, name: string) {
   const scene = createScene(sessionId, name);
@@ -19,12 +19,16 @@ export function canEnterScene(sceneId: string, session_id: string, role: Role) {
   return scene;
 }
 
-export function createTokenOnScene(sceneId: string, x: number, y: number) {
-  return createToken(sceneId, x, y);
+export function createTokenOnScene(sceneId: string, x: number, y: number, assetId?: string) {
+  return createToken(sceneId, x, y, assetId);
 }
 
 export function moveTokenOnScene(id: string, x: number, y: number) {
   moveToken(id, x, y);
+}
+
+export function setTokenAssetOnToken(id: string, assetId: string) {
+  setTokenAsset(id, assetId);
 }
 
 export function setSceneVisibilityOnScene(sceneId: string, visible: boolean) {

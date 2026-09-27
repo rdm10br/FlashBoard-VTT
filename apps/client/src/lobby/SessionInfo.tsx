@@ -12,11 +12,12 @@ type SessionInfoProps = {
   nickname: string;
   role: Role;
   invite_codes: InviteCodeSummary[];
+  default_token_asset_id: string | null;
   socket: SocketManager;
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, socket, chat }: SessionInfoProps) {
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, default_token_asset_id, socket, chat }: SessionInfoProps) {
   const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat">(() => (role === "gm" ? "session" : "tokens"));
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat">(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -79,7 +80,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   const invitePanelElement = role === "gm" ? (
     <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
   ) : null;
-  const tokenPanelElement = <TokenPanel role={role} />;
+  const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
   const chatPanelElement = (
     <ChatPanel chat={chat} socket={socket} maxHeight={detachedTab === "chat" ? "300px" : "200px"} />
   );

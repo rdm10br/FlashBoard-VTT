@@ -5,6 +5,7 @@ import { TokenManager } from "../engine/tokenManager";
 import type { ServerMessage } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { registerTokenInteractions, type SelectionState } from "./tokenInteractions";
+import { API_ORIGIN } from "../network/apiBase";
 
 // Orquestra o canvas Pixi (grid + tokens) e traduz mensagens do servidor
 // em mudanças visuais. É a única peça que fala tanto com o Pixi quanto com o socket.
@@ -17,7 +18,7 @@ export class GameController {
   private currentSceneId: string | null = null;
   private canCreateTokens = false;
 
-  private highlights = new Map<PIXI.Graphics, PIXI.Graphics>();
+  private highlights = new Map<PIXI.Container, PIXI.Graphics>();
   private selection: SelectionState = {
     selectedToken: null,
     isDragging: false,
@@ -37,17 +38,28 @@ export class GameController {
     this.grid.draw(window.innerWidth, window.innerHeight);
 
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
-    window.addEventListener("vtt-create-token", () => this.requestTokenCreate());
+    window.addEventListener("vtt-create-token", (event) => {
+      const assetId = (event as CustomEvent<{ assetId?: string }>).detail?.assetId;
+      this.requestTokenCreate(assetId);
+    });
+    window.addEventListener("vtt-set-selected-token-image", (event) => {
+      const assetId = (event as CustomEvent<{ assetId: string }>).detail?.assetId;
+      const token = this.selection.selectedToken;
+      const tokenId = token ? this.tokens.getId(token) : undefined;
+      if (assetId && tokenId && this.canCreateTokens) {
+        this.socket.send({ type: "TOKEN_SET_ASSET", payload: { id: tokenId, asset_id: assetId } });
+      }
+    });
 
     this.socket.setGameHandler((data) => this.handleServerMessage(data));
   }
 
   // Chamado pelo botão "Criar token" da UI (SessionInfo/TokenPanel).
-  requestTokenCreate() {
+  requestTokenCreate(assetId?: string) {
     if (!this.currentSceneId || !this.canCreateTokens) return;
     const x = this.grid.snap(window.innerWidth / 2);
     const y = this.grid.snap(window.innerHeight / 2);
-    this.socket.send({ type: "TOKEN_CREATE_REQUEST", payload: { scene_id: this.currentSceneId, x, y } });
+    this.socket.send({ type: "TOKEN_CREATE_REQUEST", payload: { scene_id: this.currentSceneId, x, y, asset_id: assetId } });
   }
 
   // Chamado pelo App.tsx quando a role do jogador é conhecida (SESSION_JOINED).
@@ -65,7 +77,7 @@ export class GameController {
     selectedToken.y = pos.y + dragOffset.y;
   }
 
-  private createHighlight(token: PIXI.Graphics) {
+  private createHighlight(token: PIXI.Container) {
     const highlight = new PIXI.Graphics();
     highlight.rect(0, 0, 50, 50).stroke({ width: 2, color: 0x000000, alpha: 1 });
     highlight.visible = false;
@@ -73,7 +85,7 @@ export class GameController {
     this.highlights.set(token, highlight);
   }
 
-  private registerToken(token: PIXI.Graphics) {
+  private registerToken(token: PIXI.Container) {
     this.createHighlight(token);
     registerTokenInteractions(token, {
       grid: this.grid,
@@ -108,6 +120,7 @@ export class GameController {
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
         this.registerToken(token);
+        if (t.asset_id) void this.tokens.setImage(t.id, `${API_ORIGIN}/assets/${t.asset_id}`);
       }
       return;
     }
@@ -122,12 +135,17 @@ export class GameController {
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
       this.registerToken(token);
+      if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, `${API_ORIGIN}/assets/${data.payload.asset_id}`);
       return;
     }
 
     if (data.type === "TOKEN_MOVE") {
       this.tokens.move(data.payload.id, data.payload.x, data.payload.y);
       return;
+    }
+
+    if (data.type === "TOKEN_ASSET_CHANGED") {
+      void this.tokens.setImage(data.payload.id, `${API_ORIGIN}/assets/${data.payload.asset_id}`);
     }
   }
 }

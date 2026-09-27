@@ -4,6 +4,7 @@ export type Token = {
   id: string;
   x: number;
   y: number;
+  asset_id?: string | null;
 };
 
 export type Scene = {
@@ -51,6 +52,7 @@ export type SessionJoinedPayload = {
   invite_codes: InviteCodeSummary[];
   scenes: Scene[];
   active_scene_id: string;
+  default_token_asset_id: string | null;
   chat: ChatMessage[];
 };
 
@@ -91,14 +93,16 @@ export type ClientMessage =
   | { type: "SESSION_CREATE"; payload: { name: string } }
   | { type: "SESSION_JOIN"; payload: { code: string } }
   | { type: "SESSION_ENTER"; payload: { session_id: string } }
+  | { type: "SESSION_SET_DEFAULT_TOKEN_ASSET"; payload: { asset_id: string | null } }
   | { type: "INVITE_CREATE"; payload: CreateInvitePayload }
   | { type: "INVITE_DELETE"; payload: { code: string } }
   | { type: "SCENE_CREATE"; payload: { name: string } }
   | { type: "SCENE_SWITCH"; payload: { scene_id: string } }
   | { type: "SCENE_PUSH"; payload: { scene_id: string } }
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
-  | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number } }
+  | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
+  | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
   | { type: "BACKUP_EXPORT_REQUEST"; payload: { session_id: string } }
   | { type: "BACKUP_IMPORT_GRANT_REQUEST"; payload: {} }
   | { type: "ASSET_UPLOAD_GRANT_REQUEST"; payload: { session_id: string } }
@@ -112,14 +116,16 @@ export type ServerMessage =
   | { type: "USER_ERROR"; payload: { message: string } }
   | { type: "SESSION_JOINED"; payload: SessionJoinedPayload }
   | { type: "SESSION_ERROR"; payload: { message: string } }
+  | { type: "SESSION_DEFAULT_TOKEN_ASSET_CHANGED"; payload: { asset_id: string | null } }
   | { type: "INVITE_CREATED"; payload: InviteCodeSummary }
   | { type: "INVITE_DELETED"; payload: { code: string } }
   | { type: "SCENE_CREATED"; payload: Scene }
   | { type: "SCENE_STATE"; payload: SceneState }
   | { type: "SCENE_PUSHED"; payload: { scene_id: string } }
   | { type: "SCENE_VISIBILITY_CHANGED"; payload: { scene_id: string; visible: boolean } }
-  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number } }
+  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
+  | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string } }
   | { type: "BACKUP_GRANT_ISSUED"; payload: { token: string; expires_at: number; kind: "export" | "import" | "asset_upload" } }
   | { type: "CHAT_RECEIVE"; payload: ChatMessage };
 

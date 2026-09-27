@@ -20,6 +20,7 @@ type SessionData = {
   nickname: string;
   role: Role;
   invite_codes: InviteCodeSummary[];
+  default_token_asset_id: string | null;
   chat?: ChatMessage[];
 };
 
@@ -99,7 +100,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       if (data.type === "SESSION_JOINED") {
-        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, chat } = data.payload;
+        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat } = data.payload;
 
         setSession({
           session_id,
@@ -107,6 +108,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           nickname: member.nickname || user?.nickname || "",
           role: member.role,
           invite_codes,
+          default_token_asset_id,
           chat,
         });
 
@@ -155,7 +157,16 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       if (data.type === "BACKUP_GRANT_ISSUED") {
-        socket.forwardToBackup(data);
+        if (data.payload.kind === "asset_upload") {
+          socket.forwardToAssetUpload(data);
+        } else {
+          socket.forwardToBackup(data);
+        }
+        return;
+      }
+
+      if (data.type === "SESSION_DEFAULT_TOKEN_ASSET_CHANGED") {
+        setSession((prev) => prev ? { ...prev, default_token_asset_id: data.payload.asset_id } : prev);
         return;
       }
 
@@ -238,6 +249,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           nickname={session.nickname}
           role={session.role}
           invite_codes={session.invite_codes}
+          default_token_asset_id={session.default_token_asset_id}
           socket={socket}
           chat={session.chat}
         />

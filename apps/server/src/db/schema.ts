@@ -13,6 +13,7 @@ export function createSchema(db: Database.Database) {
       name            TEXT NOT NULL UNIQUE,
       owner_id        TEXT NOT NULL REFERENCES users(id),
       active_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL,
+      default_token_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
       max_dice_count  INTEGER NOT NULL DEFAULT 100,
       max_dice_sides  INTEGER NOT NULL DEFAULT 100,
       created_at      INTEGER NOT NULL DEFAULT (unixepoch())
@@ -49,6 +50,7 @@ export function createSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS tokens (
       id          TEXT PRIMARY KEY,
       scene_id    TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+      asset_id    TEXT REFERENCES assets(id) ON DELETE SET NULL,
       x           REAL NOT NULL,
       y           REAL NOT NULL,
       updated_at  INTEGER NOT NULL DEFAULT (unixepoch())

@@ -16,6 +16,30 @@ import { pipeline } from "stream/promises";
 import { UPLOADS_DIR, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "./storage/uploads.js";
 
 const app = Fastify();
+
+// Em desenvolvimento o Vite serve o cliente em outra porta (normalmente 5173),
+// enquanto a API/WebSocket fica em 3000. Sem este cabeçalho o navegador pode
+// concluir o upload no servidor, mas bloquear a resposta para o cliente como
+// "Failed to fetch". Em produção cliente e API usam a mesma origem.
+app.addHook("onRequest", (request, reply, done) => {
+  const origin = request.headers.origin;
+  const isLocalVite = origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
+  if (!isLocalVite) {
+    done();
+    return;
+  }
+
+  reply.header("Access-Control-Allow-Origin", origin);
+  reply.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  reply.header("Access-Control-Allow-Headers", "Content-Type");
+  if (request.method === "OPTIONS") {
+    reply.code(204).send();
+    return;
+  }
+  done();
+});
+
 app.register(multipart, {
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });

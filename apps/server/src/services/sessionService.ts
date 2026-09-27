@@ -75,6 +75,7 @@ export function buildSessionJoinedPayload(
       .filter((item): item is InviteCodeSummary => item !== null),
     scenes: sceneList,
     active_scene_id,
+    default_token_asset_id: session.default_token_asset_id,
     chat: getChatMessagesForSession(session.id, membership.role, nickname),
   };
 }

@@ -9,6 +9,7 @@ export class SocketManager {
   private gameHandler: ((data: ServerMessage) => void) | null = null;
   private statusHandler: ((status: ConnectionStatus) => void) | null = null;
   private backupHandler: ((data: ServerMessage) => void) | null = null;
+  private assetUploadHandler: ((data: ServerMessage) => void) | null = null;
   private queue: ClientMessage[] = [];
   
   setBackupHandler(handler: ((data: ServerMessage) => void) | null) {
@@ -17,6 +18,14 @@ export class SocketManager {
 
   forwardToBackup(data: ServerMessage) {
     this.backupHandler?.(data);
+  }
+
+  setAssetUploadHandler(handler: ((data: ServerMessage) => void) | null) {
+    this.assetUploadHandler = handler;
+  }
+
+  forwardToAssetUpload(data: ServerMessage) {
+    this.assetUploadHandler?.(data);
   }
 
   // Backoff exponencial: 1s, 2s, 4s, 8s, 16s, 30s (teto)
