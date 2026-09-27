@@ -1,7 +1,7 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import { send } from "../ws/broadcast.js";
-import { issueExportGrant, issueImportGrant } from "../state/backupGrants.js";
+import { issueGrant } from "../state/grants.js";
 
 function handleBackupExportRequest(payload: { session_id: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
@@ -15,13 +15,13 @@ function handleBackupExportRequest(payload: { session_id: string }, ctx: Handler
     return;
   }
 
-  const { token, expires_at } = issueExportGrant(payload.session_id, state.user_id!);
+  const { token, expires_at } = issueGrant("export", state.user_id!, payload.session_id);
   send(ws, { type: "BACKUP_GRANT_ISSUED", payload: { token, expires_at, kind: "export" } });
 }
 
 function handleBackupImportGrantRequest(_payload: unknown, ctx: HandlerContext) {
   const { state, ws } = ctx;
-  const { token, expires_at } = issueImportGrant(state.user_id!);
+  const { token, expires_at } = issueGrant("import", state.user_id!, null);
   send(ws, { type: "BACKUP_GRANT_ISSUED", payload: { token, expires_at, kind: "import" } });
 }
 

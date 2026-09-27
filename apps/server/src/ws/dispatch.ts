@@ -9,6 +9,7 @@ import { chatHandlers } from "../handlers/chatHandlers.js";
 import { sceneHandlers } from "../handlers/sceneHandlers.js";
 import { tokenHandlers } from "../handlers/tokenHandlers.js";
 import { backupHandlers } from "../handlers/backupHandlers.js";
+import { assetHandlers } from "../handlers/assetHandlers.js";
 
 import { send } from "./broadcast.js";
 
@@ -19,7 +20,8 @@ const handlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   ...chatHandlers,
   ...sceneHandlers,
   ...tokenHandlers,
-  ...backupHandlers
+  ...backupHandlers,
+  ...assetHandlers
 };
 
 // Tipos que exigem login e/ou sessão ativa
@@ -29,13 +31,15 @@ const REQUIRES_LOGIN = new Set<ClientMessage["type"]>([
   "SCENE_CREATE", "SCENE_SWITCH", "SCENE_PUSH", "SCENE_SET_VISIBLE",
   "TOKEN_CREATE_REQUEST", "TOKEN_MOVE",
   "BACKUP_EXPORT_REQUEST", "BACKUP_IMPORT_GRANT_REQUEST",
+  "ASSET_UPLOAD_GRANT_REQUEST"
 ]);
 
 const REQUIRES_SESSION = new Set<ClientMessage["type"]>([
   "INVITE_CREATE", "INVITE_DELETE", "CHAT_SEND",
   "SCENE_CREATE", "SCENE_SWITCH", "SCENE_PUSH", "SCENE_SET_VISIBLE",
   "TOKEN_CREATE_REQUEST", "TOKEN_MOVE",
-  "BACKUP_EXPORT_REQUEST"
+  "BACKUP_EXPORT_REQUEST",
+  "ASSET_UPLOAD_GRANT_REQUEST"
 ]);
 
 export function dispatch(data: ClientMessage, state: ClientState, ws: WebSocket) {

@@ -65,5 +65,16 @@ export function createSchema(db: Database.Database) {
       metadata    TEXT,
       created_at  INTEGER NOT NULL DEFAULT (unixepoch())
     );
+
+    CREATE TABLE IF NOT EXISTS assets (
+      id          TEXT PRIMARY KEY,
+      session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      kind        TEXT NOT NULL CHECK(kind IN ('token_image', 'map_image', 'character_sheet')),
+      filename    TEXT NOT NULL,
+      path        TEXT NOT NULL,
+      mime_type   TEXT NOT NULL,
+      size_bytes  INTEGER NOT NULL,
+      created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    );
   `);
 }

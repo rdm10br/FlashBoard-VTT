@@ -12,6 +12,7 @@ import type { Role } from "@vtt/protocol";
 const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 const wsUrl = import.meta.env.VITE_WS_URL ?? `${wsProtocol}//${window.location.host}`;
 const socket = new SocketManager(wsUrl);
+(window as any).__socket = socket;
 
 // --- Jogo (Pixi) ---
 const game = new GameController(socket);
