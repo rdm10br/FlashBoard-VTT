@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 type FloatingPanelProps = {
   title: string | null;
@@ -8,29 +8,42 @@ type FloatingPanelProps = {
 
 export function FloatingPanel({ title, onClose, children }: FloatingPanelProps) {
   const [pos, setPos] = useState({ x: 100, y: 100 });
-  const drag = { active: false, startX: 0, startY: 0, sx: 0, sy: 0 } as any;
+
+  // useRef garante que o objeto persiste entre renders sem recriar referências.
+  const drag = useRef({ active: false, startX: 0, startY: 0, sx: 0, sy: 0 });
+
+  // Mantemos referências estáveis para os handlers para que removeEventListener funcione.
+  const handleMouseMove = useRef((e: MouseEvent) => {
+    if (!drag.current.active) return;
+    const dx = e.clientX - drag.current.startX;
+    const dy = e.clientY - drag.current.startY;
+    setPos({ x: drag.current.sx + dx, y: drag.current.sy + dy });
+  });
+
+  const handleMouseUp = useRef(() => {
+    drag.current.active = false;
+    document.removeEventListener("mousemove", handleMouseMove.current);
+    document.removeEventListener("mouseup", handleMouseUp.current);
+  });
+
+  // Cleanup de segurança: remove listeners se o painel desmontar durante um drag.
+  useEffect(() => {
+    const move = handleMouseMove.current;
+    const up = handleMouseUp.current;
+    return () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+  }, []);
 
   function onMouseDown(e: React.MouseEvent) {
-    drag.active = true;
-    drag.startX = e.clientX;
-    drag.startY = e.clientY;
-    drag.sx = pos.x;
-    drag.sy = pos.y;
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }
-
-  function onMouseMove(e: MouseEvent) {
-    if (!drag.active) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    setPos({ x: drag.sx + dx, y: drag.sy + dy });
-  }
-
-  function onMouseUp() {
-    drag.active = false;
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
+    drag.current.active = true;
+    drag.current.startX = e.clientX;
+    drag.current.startY = e.clientY;
+    drag.current.sx = pos.x;
+    drag.current.sy = pos.y;
+    document.addEventListener("mousemove", handleMouseMove.current);
+    document.addEventListener("mouseup", handleMouseUp.current);
   }
 
   return (

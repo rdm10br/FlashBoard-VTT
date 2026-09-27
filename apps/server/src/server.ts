@@ -3,8 +3,8 @@ import fastifyStatic from "@fastify/static";
 import path from "path";
 import fs from "fs";
 import { WebSocketServer, WebSocket } from "ws";
-import type { ClientMessage } from "../../../packages/protocol";
-import { getSessionBackup, importSessionBackup, type SessionBackup } from "./db";
+import type { ClientMessage } from "@vtt/protocol";
+import { getSessionBackup, importSessionBackup, type SessionBackup } from "./db/index.js";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
@@ -72,8 +72,30 @@ const start = async () => {
 
   const wss = new WebSocketServer({ server: app.server });
 
+  // ─── Heartbeat: detecta conexões zumbi (sem resposta ao ping) ───────────
+  const HEARTBEAT_INTERVAL = 25_000;
+
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const client = ws as WebSocket & { isAlive?: boolean };
+      if (client.isAlive === false) {
+        console.warn("Encerrando conexão zumbi (sem pong).");
+        client.terminate();
+        return;
+      }
+      client.isAlive = false;
+      client.ping();
+    });
+  }, HEARTBEAT_INTERVAL);
+
+  wss.on("close", () => clearInterval(heartbeat));
+
   wss.on("connection", (ws: WebSocket) => {
     console.log("Client conectado");
+
+    // Marca como vivo ao conectar e a cada pong recebido
+    (ws as WebSocket & { isAlive: boolean }).isAlive = true;
+    ws.on("pong", () => { (ws as WebSocket & { isAlive: boolean }).isAlive = true; });
 
     const state: ClientState = {
       ws,
@@ -95,11 +117,20 @@ const start = async () => {
       try {
         data = JSON.parse(text) as ClientMessage;
       } catch {
-        console.warn("Mensagem inválida, ignorando.");
+        console.warn("Mensagem inválida recebida (JSON inválido), ignorando.");
         return;
       }
 
-      dispatch(data, state, ws);
+      if (!data || typeof data !== "object" || typeof data.type !== "string") {
+        console.warn("Mensagem sem formato esperado (type ausente), ignorando.");
+        return;
+      }
+
+      try {
+        dispatch(data, state, ws);
+      } catch (err) {
+        console.error("Erro inesperado no dispatch:", err);
+      }
     });
 
     ws.on("close", () => {

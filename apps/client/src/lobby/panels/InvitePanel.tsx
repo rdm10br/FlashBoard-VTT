@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { InviteCodeSummary, Role } from "../../../../../packages/protocol/index.ts";
+import type { InviteCodeSummary, Role } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
 
 type InvitePanelProps = {

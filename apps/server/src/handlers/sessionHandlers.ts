@@ -1,6 +1,6 @@
-import type { ClientMessage } from "../../../../packages/protocol";
+import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getSessionByName } from "../db";
+import { getSessionByName } from "../db/index.js";
 import { send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { activeScenesPerSession } from "../state/activeScenes";
@@ -14,7 +14,12 @@ import {
 
 function handleSessionCreate(payload: { name: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
-  const { name } = payload;
+  const name = payload?.name;
+
+  if (!name || typeof name !== "string" || !name.trim()) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Nome de sessão inválido." } });
+    return;
+  }
 
   if (getSessionByName(name.trim())) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Já existe uma sessão com esse nome." } });
@@ -33,7 +38,12 @@ function handleSessionCreate(payload: { name: string }, ctx: HandlerContext) {
 
 function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
-  const result = joinSessionByCode(state.user_id!, payload.code, state.nickname);
+  if (!payload?.code || typeof payload.code !== "string" || !payload.code.trim()) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Código de convite inválido." } });
+    return;
+  }
+
+  const result = joinSessionByCode(state.user_id!, payload.code.trim(), state.nickname);
 
   if ("error" in result) {
     send(ws, { type: "SESSION_ERROR", payload: { message: result.error } });
@@ -61,7 +71,12 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
 
 function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
-  const result = enterSession(state.user_id!, payload.session_id, state.nickname);
+  if (!payload?.session_id || typeof payload.session_id !== "string" || !payload.session_id.trim()) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "ID de sessão inválido." } });
+    return;
+  }
+
+  const result = enterSession(state.user_id!, payload.session_id.trim(), state.nickname);
 
   if ("error" in result) {
     send(ws, { type: "SESSION_ERROR", payload: { message: result.error } });

@@ -1,0 +1,10 @@
+# Copie este arquivo para tunnel-config.yml e preencha com os dados do seu túnel.
+# Gerado com: npx --prefix apps/server cloudflared tunnel create vtt
+# credentials-file: C:\Users\SEU_USUARIO\.cloudflared\SEU_TUNNEL_ID_AQUI.json
+tunnel: SEU_TUNNEL_ID_AQUI
+credentials-file: ./scripts/tunnel-credentials.json
+
+ingress:
+  - hostname: vtt.seudominio.com
+    service: http://localhost:3000
+  - service: http_status:404

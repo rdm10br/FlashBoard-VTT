@@ -1,5 +1,5 @@
-import type { InviteCodeSummary } from "../../../../packages/protocol";
-import type { InviteCode } from "../db.js";
+import type { InviteCodeSummary } from "@vtt/protocol";
+import type { InviteCode } from "../db/index.js";
 
 export function toInviteSummary(inv: InviteCode | undefined | null): InviteCodeSummary | null {
   if (!inv) return null;

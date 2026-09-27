@@ -9,10 +9,13 @@ export function createSchema(db: Database.Database) {
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
-      id          TEXT PRIMARY KEY,
-      name        TEXT NOT NULL UNIQUE,
-      owner_id    TEXT NOT NULL REFERENCES users(id),
-      created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+      id              TEXT PRIMARY KEY,
+      name            TEXT NOT NULL UNIQUE,
+      owner_id        TEXT NOT NULL REFERENCES users(id),
+      active_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL,
+      max_dice_count  INTEGER NOT NULL DEFAULT 100,
+      max_dice_sides  INTEGER NOT NULL DEFAULT 100,
+      created_at      INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
     CREATE TABLE IF NOT EXISTS memberships (

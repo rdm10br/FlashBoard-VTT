@@ -1,4 +1,4 @@
-import type { ClientMessage } from "../../../../packages/protocol";
+import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import { createTokenOnScene, moveTokenOnScene } from "../services/gameService.js";
 import { broadcastToScene } from "../ws/broadcast.js";
@@ -6,6 +6,7 @@ import { broadcastToScene } from "../ws/broadcast.js";
 function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: number }, ctx: HandlerContext) {
   const { state } = ctx;
   if (state.role === "viewer") return;
+  if (!payload || typeof payload.scene_id !== "string" || typeof payload.x !== "number" || typeof payload.y !== "number") return;
   const token = createTokenOnScene(payload.scene_id, payload.x, payload.y);
   broadcastToScene(payload.scene_id, {
     type: "TOKEN_CREATE",
@@ -16,6 +17,7 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
+  if (!payload || typeof payload.id !== "string" || typeof payload.x !== "number" || typeof payload.y !== "number") return;
   const { id, x, y } = payload;
   moveTokenOnScene(id, x, y);
   if (state.scene_id) {

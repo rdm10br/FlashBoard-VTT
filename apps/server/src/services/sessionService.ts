@@ -1,5 +1,5 @@
-import type { InviteCodeSummary, Role, SessionJoinedPayload } from "../../../../packages/protocol/index.ts";
-import type { Membership, Session } from "../db";
+import type { InviteCodeSummary, Role, SessionJoinedPayload } from "@vtt/protocol";
+import type { Membership, Session } from "../db/index.js";
 import {
   createMembership,
   createSession,
@@ -11,7 +11,7 @@ import {
   getVisibleScenes,
   getScenesForSession,
   useInviteCode,
-} from "../db";
+} from "../db/index.js";
 import { toInviteSummary } from "./inviteService.js";
 
 export type SessionJoinResult = {

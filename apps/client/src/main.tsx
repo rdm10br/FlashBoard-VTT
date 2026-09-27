@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App.js";
 import { SocketManager } from "./network/socket.js";
 import { GameController } from "./game/GameController.js";
-import type { Role } from "../../../packages/protocol/index.js";
+import type { Role } from "@vtt/protocol";
 
 // --- Socket ---
 // Em dev, o client (Vite) roda numa porta diferente do backend, então apontamos

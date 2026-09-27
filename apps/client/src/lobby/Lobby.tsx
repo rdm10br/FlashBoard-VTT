@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Role } from "../../../../packages/protocol/index.ts";
+import type { Role } from "@vtt/protocol";
 
 type Tab = "create" | "join";
 

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { Role } from "./db.js";
+import type { Role } from "./db/index.js";
 
 export type ClientState = {
   ws: WebSocket;

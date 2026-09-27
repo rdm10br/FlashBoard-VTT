@@ -1,6 +1,6 @@
-import type { Role } from "../db";
-import { createChatMessage, getChatMessagesForSession, getMembersForSession } from "../db";
-import type { ServerMessage, ChatMessage } from "../../../../packages/protocol";
+import type { Role } from "../db/index.js";
+import { createChatMessage, getChatMessagesForSession, getMembersForSession, getSession, updateSessionDiceLimits } from "../db/index.js";
+import type { ServerMessage, ChatMessage } from "@vtt/protocol";
 import type { WebSocket } from "ws";
 
 export type ChatPayload = {
@@ -74,6 +74,25 @@ export function handleChatCommand(
 
     const count = parsed[1] ? parseInt(parsed[1], 10) : 1;
     const sides = parseInt(parsed[2], 10);
+
+    const session = getSession(session_id);
+    const maxDiceCount = session?.max_dice_count ?? 100;
+    const maxDiceSides = session?.max_dice_sides ?? 100;
+
+    if (!Number.isInteger(count) || count < 1 || !Number.isInteger(sides) || sides < 1) {
+      send({ type: "USER_ERROR", payload: { message: "Apenas números inteiros e positivos são aceitos para quantidade e faces dos dados." } });
+      return;
+    }
+
+    if (count > maxDiceCount) {
+      send({ type: "USER_ERROR", payload: { message: `Limite excedido: a sessão permite no máximo ${maxDiceCount} dados por rolagem.` } });
+      return;
+    }
+
+    if (sides > maxDiceSides) {
+      send({ type: "USER_ERROR", payload: { message: `Limite excedido: a sessão permite dados com no máximo ${maxDiceSides} faces.` } });
+      return;
+    }
     let modifier = 0;
     let attribute: string | undefined;
     for (let i = 2; i < pieces.length; i += 1) {
@@ -96,7 +115,20 @@ export function handleChatCommand(
       }
     }
 
-    const total = values.reduce((sum, v) => sum + v, 0) + modifier;
+    let baseValue = 0;
+    let chosen: number | undefined;
+
+    if (isAdv && values.length > 1) {
+      chosen = Math.max(...values);
+      baseValue = chosen;
+    } else if (isDis && values.length > 1) {
+      chosen = Math.min(...values);
+      baseValue = chosen;
+    } else {
+      baseValue = values.reduce((sum, v) => sum + v, 0);
+    }
+
+    const total = baseValue + modifier;
     const rollDetails = {
       dice: `${count}d${sides}`,
       modifier,
@@ -106,8 +138,10 @@ export function handleChatCommand(
       results: values,
       total,
     };
-    const rollText = `${state.nickname} rolou ${rollDetails.dice}${modifier ? ` ${modifier >= 0 ? "+" : ""}${modifier}` : ""}${attribute ? ` ${attribute}` : ""}`;
-    const fullText = `${rollText} → ${values.join(", ")} = ${total}`;
+    const rollMode = isAdv ? " (vantagem)" : isDis ? " (desvantagem)" : "";
+    const rollText = `${state.nickname} rolou ${rollDetails.dice}${rollMode}${modifier ? ` ${modifier >= 0 ? "+" : ""}${modifier}` : ""}${attribute ? ` ${attribute}` : ""}`;
+    const resultDetails = chosen !== undefined ? `[${values.join(", ")}] (escolhido: ${chosen})` : values.join(", ");
+    const fullText = `${rollText} → ${resultDetails} = ${total}`;
 
     const createdRoll = createChatMessage(session_id, state.nickname, fullText, now, "roll", undefined, rollDetails);
     sendGlobalMessage({ type: "CHAT_RECEIVE", payload: { id: createdRoll.id, sender: state.nickname, text: fullText, timestamp: now, message_type: "roll", roll_details: rollDetails, visible_to: "all" } });
@@ -149,6 +183,61 @@ export function handleChatCommand(
     const text = `(secreto) ${message}`;
     const createdSecret = createChatMessage(session_id, state.nickname, text, now, "secret", undefined, { raw: message });
     sendSecretMessage({ type: "CHAT_RECEIVE", payload: { id: createdSecret.id, sender: state.nickname, text, timestamp: now, message_type: "secret", visible_to: "gm" } });
+    return;
+  }
+
+  if (command === "setdice" || (command === "config" && pieces[1]?.toLowerCase() === "dice")) {
+    if (state.role !== "gm") {
+      send({ type: "USER_ERROR", payload: { message: "Apenas o mestre pode configurar os limites de dados da sessão." } });
+      return;
+    }
+
+    const argsOffset = command === "config" ? 2 : 1;
+    const countStr = pieces[argsOffset];
+    const sidesStr = pieces[argsOffset + 1];
+
+    if (!countStr || !sidesStr || !/^\d+$/.test(countStr) || !/^\d+$/.test(sidesStr)) {
+      send({
+        type: "USER_ERROR",
+        payload: { message: "Uso: /setdice <máx_dados> <máx_faces> (números inteiros positivos, ex: /setdice 50 100)" }
+      });
+      return;
+    }
+
+    const newMaxCount = parseInt(countStr, 10);
+    const newMaxSides = parseInt(sidesStr, 10);
+
+    if (newMaxCount < 1 || newMaxSides < 1) {
+      send({
+        type: "USER_ERROR",
+        payload: { message: "Apenas números inteiros e positivos maiores que zero são aceitos." }
+      });
+      return;
+    }
+
+    if (newMaxCount > 1000 || newMaxSides > 10000) {
+      send({
+        type: "USER_ERROR",
+        payload: { message: "O limite de segurança máximo permitido pelo servidor é de 1000 dados e 10000 faces." }
+      });
+      return;
+    }
+
+    updateSessionDiceLimits(session_id, newMaxCount, newMaxSides);
+
+    const msgText = `🎲 O mestre configurou os limites de rolagem para: máx. ${newMaxCount} dados e dados de até ${newMaxSides} faces.`;
+    const createdMsg = createChatMessage(session_id, "Sistema", msgText, now, "system");
+    sendGlobalMessage({
+      type: "CHAT_RECEIVE",
+      payload: {
+        id: createdMsg.id,
+        sender: "Sistema",
+        text: msgText,
+        timestamp: now,
+        message_type: "system",
+        visible_to: "all",
+      }
+    });
     return;
   }
 

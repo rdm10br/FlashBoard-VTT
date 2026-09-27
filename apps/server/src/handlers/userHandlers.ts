@@ -1,6 +1,6 @@
-import type { ClientMessage } from "../../../../packages/protocol";
+import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getUserByNickname, createUser, getSessionsForUser } from "../db";
+import { getUserByNickname, createUser, getSessionsForUser } from "../db/index.js";
 import { send } from "../ws/broadcast.js";
 
 function handlePing(_payload: string, _ctx: HandlerContext) {
@@ -9,9 +9,9 @@ function handlePing(_payload: string, _ctx: HandlerContext) {
 
 function handleUserLogin(payload: { nickname: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
-  const { nickname } = payload;
+  const nickname = payload?.nickname;
 
-  if (!nickname.trim()) {
+  if (!nickname || typeof nickname !== "string" || !nickname.trim()) {
     send(ws, { type: "USER_ERROR", payload: { message: "Apelido inválido." } });
     return;
   }

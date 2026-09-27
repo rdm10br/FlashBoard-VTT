@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import type { ChatMessage, InviteCodeSummary, Role } from "../../../../packages/protocol/index.ts";
+import { useState, useEffect, useRef } from "react";
+import type { ChatMessage, InviteCodeSummary, Role } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
@@ -21,7 +21,25 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat">(null);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
-  const resizing = { active: false, startX: 0, startWidth: 380 } as { active: boolean; startX: number; startWidth: number };
+
+  // useRef para o estado de resize: persiste entre renders sem recriar referências.
+  const resizing = useRef({ active: false, startX: 0, startWidth: 380 });
+
+  // Referências estáveis dos handlers para que removeEventListener funcione corretamente.
+  const handleDoResize = useRef((e: MouseEvent) => {
+    if (!resizing.current.active) return;
+    const dx = resizing.current.startX - e.clientX; // sidebar fica na direita
+    let newW = resizing.current.startWidth + dx;
+    if (newW < 160) newW = 160;
+    if (newW > 700) newW = 700;
+    setWidth(newW);
+  });
+
+  const handleStopResize = useRef(() => {
+    resizing.current.active = false;
+    document.removeEventListener("mousemove", handleDoResize.current);
+    document.removeEventListener("mouseup", handleStopResize.current);
+  });
 
   // Ajusta aba ativa se a role mudar (ex: jogador entra como player)
   useEffect(() => {
@@ -29,33 +47,26 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
     else setActiveTab("tokens");
   }, [role]);
 
+  // Cleanup de segurança: remove listeners se o componente desmontar durante um resize.
+  useEffect(() => {
+    const move = handleDoResize.current;
+    const up = handleStopResize.current;
+    return () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+  }, []);
+
   function roleLabel(r: Role) {
     return r === "gm" ? "GM" : r === "player" ? "Player" : "Viewer";
   }
 
-  function startResize(e: any) {
-    resizing.active = true;
-    resizing.startX = e.clientX;
-    resizing.startWidth = width;
-    document.addEventListener("mousemove", doResize);
-    document.addEventListener("mouseup", stopResize);
-  }
-
-  function doResize(e: MouseEvent) {
-    if (!resizing.active) return;
-    const dx = resizing.startX - e.clientX; // porque a sidebar fica na direita
-    let newW = resizing.startWidth + dx;
-    const minW = 160;
-    const maxW = 700;
-    if (newW < minW) newW = minW;
-    if (newW > maxW) newW = maxW;
-    setWidth(newW);
-  }
-
-  function stopResize() {
-    resizing.active = false;
-    document.removeEventListener("mousemove", doResize);
-    document.removeEventListener("mouseup", stopResize);
+  function startResize(e: React.MouseEvent) {
+    resizing.current.active = true;
+    resizing.current.startX = e.clientX;
+    resizing.current.startWidth = width;
+    document.addEventListener("mousemove", handleDoResize.current);
+    document.addEventListener("mouseup", handleStopResize.current);
   }
 
   function toggleDetach(tab: "session" | "tokens" | "chat", fallback: "session" | "tokens" | "chat") {

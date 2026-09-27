@@ -2,7 +2,7 @@ import * as PIXI from "pixi.js";
 import { App as PixiApp } from "../engine/app";
 import { Grid } from "../engine/grid";
 import { TokenManager } from "../engine/tokenManager";
-import type { ServerMessage } from "../../../../packages/protocol/index.ts";
+import type { ServerMessage } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { registerTokenInteractions, type SelectionState } from "./tokenInteractions";
 

@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { ClientMessage } from "../../../../packages/protocol";
+import type { ClientMessage } from "@vtt/protocol";
 import type { ClientState } from "../clientRegistry.js";
 import type { MessageHandler } from "../handlers/types.js";
 import { userHandlers } from "../handlers/userHandlers.js";
@@ -8,6 +8,8 @@ import { inviteHandlers } from "../handlers/inviteHandlers.js";
 import { chatHandlers } from "../handlers/chatHandlers.js";
 import { sceneHandlers } from "../handlers/sceneHandlers.js";
 import { tokenHandlers } from "../handlers/tokenHandlers.js";
+
+import { send } from "./broadcast.js";
 
 const handlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   ...userHandlers,
@@ -37,11 +39,13 @@ export function dispatch(data: ClientMessage, state: ClientState, ws: WebSocket)
 
   if (REQUIRES_LOGIN.has(data.type) && !state.user_id) {
     console.warn("Mensagem sem login, ignorando.");
+    send(ws, { type: "USER_ERROR", payload: { message: "Você precisa estar conectado para realizar esta ação." } });
     return;
   }
 
   if (REQUIRES_SESSION.has(data.type) && !state.session_id) {
     console.warn("Mensagem sem sessão ativa, ignorando.");
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Nenhuma sessão ativa selecionada." } });
     return;
   }
 
@@ -51,5 +55,13 @@ export function dispatch(data: ClientMessage, state: ClientState, ws: WebSocket)
     return;
   }
 
-  handler((data as any).payload, { state, ws });
+  try {
+    handler((data as any).payload, { state, ws });
+  } catch (err) {
+    console.error(`Erro ao executar handler de [${data.type}]:`, err);
+    send(ws, {
+      type: "USER_ERROR",
+      payload: { message: `Erro interno ao processar ${data.type}.` },
+    });
+  }
 }

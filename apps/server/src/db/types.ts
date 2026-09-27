@@ -2,7 +2,15 @@ export type Role = "gm" | "player" | "viewer";
 
 export type User = { id: string; nickname: string };
 
-export type Session = { id: string; name: string; owner_id: string; created_at: number };
+export type Session = {
+  id: string;
+  name: string;
+  owner_id: string;
+  active_scene_id: string | null;
+  max_dice_count?: number;
+  max_dice_sides?: number;
+  created_at: number;
+};
 
 export type Membership = {
   id: string;

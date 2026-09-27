@@ -6,6 +6,22 @@ export function runMigrations(db: Database.Database) {
   const chatColumns = db.prepare("PRAGMA table_info(chat_messages)").all();
   const chatColumnNames = chatColumns.map((col: any) => col.name);
 
+  // Migração incremental: garante que sessions tenha max_dice_count e max_dice_sides
+  const sessionColumns = db.prepare("PRAGMA table_info(sessions)").all();
+  const sessionColumnNames = sessionColumns.map((col: any) => col.name);
+
+  if (!sessionColumnNames.includes("max_dice_count")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN max_dice_count INTEGER NOT NULL DEFAULT 100;");
+  }
+
+  if (!sessionColumnNames.includes("max_dice_sides")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN max_dice_sides INTEGER NOT NULL DEFAULT 100;");
+  }
+
+  if (!sessionColumnNames.includes("active_scene_id")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN active_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL;");
+  }
+
   const needsMigration =
     !chatColumnNames.includes("message_type") ||
     !chatColumnNames.includes("target") ||

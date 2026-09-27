@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChatMessage } from "../../../../../packages/protocol/index.ts";
+import type { ChatMessage } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
 
 type ChatPanelProps = {

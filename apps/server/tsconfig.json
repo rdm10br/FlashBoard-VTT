@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@protocol": ["../packages/protocol/index.ts"]
+      "@vtt/protocol": ["../../packages/protocol/index.ts"]
     }
   },
   "include": [

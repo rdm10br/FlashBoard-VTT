@@ -1,4 +1,4 @@
-import type { Role } from "../../../../../packages/protocol/index.ts";
+import type { Role } from "@vtt/protocol";
 
 type TokenPanelProps = {
   role: Role;

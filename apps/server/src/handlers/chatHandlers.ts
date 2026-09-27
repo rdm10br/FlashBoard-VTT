@@ -1,10 +1,11 @@
-import type { ClientMessage } from "../../../../packages/protocol";
+import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import { handleChatCommand } from "../services/chatService.js";
 import { send, broadcastToSession, sendToSessionMembers, broadcastToGMs } from "../ws/broadcast.js";
 
 function handleChatSend(payload: { text: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
+  if (!payload?.text || typeof payload.text !== "string" || !payload.text.trim()) return;
   const session_id = state.session_id!;
   const rawText = payload.text.trim();
   handleChatCommand(

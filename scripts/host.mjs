@@ -1,7 +1,8 @@
 import { spawnSync, spawn } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
+import yaml from "js-yaml";
 import { bin as cloudflaredBin, install as installCloudflared } from "cloudflared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -9,6 +10,7 @@ const rootDir = path.join(__dirname, "..");
 
 const CLIENT_INDEX = path.join(rootDir, "apps/client/dist/index.html");
 const SERVER_ENTRY = path.join(rootDir, "apps/server/dist/apps/server/src/server.js");
+const NAMED_TUNNEL_CONFIG = path.join(rootDir, "scripts/tunnel-config.yml");
 
 function runBuild(label, args) {
   console.log(`\n▶ Build ausente — buildando ${label}...`);
@@ -40,7 +42,64 @@ if (!existsSync(cloudflaredBin)) {
   console.log("✓ Binário do cloudflared já existe, pulando download.");
 }
 
-// --- Passo 3: sobe o server ---
+// --- Passo 3: valida o túnel nomeado (se existir), com fallback para o quick tunnel ---
+function validateNamedTunnelConfig(configPath) {
+  if (!existsSync(configPath)) {
+    return { valid: false, reason: null }; // não configurado — silencioso, não é erro
+  }
+
+  let parsed;
+  try {
+    parsed = yaml.load(readFileSync(configPath, "utf-8"));
+  } catch (err) {
+    return { valid: false, reason: `YAML inválido: ${err.message}` };
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return { valid: false, reason: "arquivo vazio ou não é um objeto YAML válido" };
+  }
+
+  if (!parsed.tunnel || typeof parsed.tunnel !== "string") {
+    return { valid: false, reason: "campo 'tunnel' ausente ou inválido" };
+  }
+
+  if (!parsed["credentials-file"] || typeof parsed["credentials-file"] !== "string") {
+    return { valid: false, reason: "campo 'credentials-file' ausente ou inválido" };
+  }
+
+  if (!existsSync(parsed["credentials-file"])) {
+    return { valid: false, reason: `arquivo de credenciais não encontrado: ${parsed["credentials-file"]}` };
+  }
+
+  if (!Array.isArray(parsed.ingress) || parsed.ingress.length === 0) {
+    return { valid: false, reason: "campo 'ingress' ausente ou vazio" };
+  }
+
+  const hasValidRoute = parsed.ingress.some(
+    (rule) => rule && typeof rule.hostname === "string" && typeof rule.service === "string"
+  );
+  if (!hasValidRoute) {
+    return { valid: false, reason: "nenhuma regra de 'ingress' com 'hostname' e 'service' válidos" };
+  }
+
+  return { valid: true, reason: null, hostname: parsed.ingress.find((r) => r.hostname)?.hostname };
+}
+
+const namedTunnel = validateNamedTunnelConfig(NAMED_TUNNEL_CONFIG);
+
+let tunnelArgs;
+if (namedTunnel.valid) {
+  console.log(`✓ Túnel nomeado configurado — usando URL fixa: https://${namedTunnel.hostname}`);
+  tunnelArgs = ["tunnel", "--config", NAMED_TUNNEL_CONFIG, "run"];
+} else {
+  if (namedTunnel.reason) {
+    // Só avisa se o arquivo existe mas está incorreto — se simplesmente não existe, fica em silêncio.
+    console.warn(`⚠ tunnel-config.yml encontrado mas inválido (${namedTunnel.reason}). Usando túnel temporário.`);
+  }
+  tunnelArgs = ["tunnel", "--url", "http://localhost:3000"];
+}
+
+// --- Passo 4: sobe o server ---
 console.log("\n▶ Iniciando server...");
 const server = spawn("node", [SERVER_ENTRY], { cwd: rootDir, stdio: "inherit" });
 
@@ -50,11 +109,9 @@ server.on("exit", (code) => {
   process.exit(code ?? 0);
 });
 
-// --- Passo 4: sobe o túnel Cloudflare, capturando a URL gerada ---
-console.log("▶ Iniciando túnel Cloudflare...\n");
-const tunnel = spawn(cloudflaredBin, ["tunnel", "--url", "http://localhost:3000"], {
-  cwd: rootDir,
-});
+// --- Passo 5: sobe o túnel Cloudflare ---
+console.log(namedTunnel.valid ? "▶ Iniciando túnel Cloudflare nomeado...\n" : "▶ Iniciando túnel Cloudflare temporário...\n");
+const tunnel = spawn(cloudflaredBin, tunnelArgs, { cwd: rootDir });
 
 let urlShown = false;
 const urlRegex = /https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/;
@@ -63,7 +120,7 @@ function handleTunnelOutput(chunk) {
   const text = chunk.toString();
   process.stdout.write(text);
 
-  if (!urlShown) {
+  if (!urlShown && !namedTunnel.valid) {
     const match = text.match(urlRegex);
     if (match) {
       urlShown = true;
@@ -88,6 +145,13 @@ tunnel.on("exit", (code) => {
   }
 });
 
+if (namedTunnel.valid) {
+  console.log("\n" + "=".repeat(60));
+  console.log(`  🌐 URL pública (fixa):  https://${namedTunnel.hostname}`);
+  console.log("=".repeat(60) + "\n");
+}
+
+// --- Encerramento limpo com Ctrl+C ---
 process.on("SIGINT", () => {
   console.log("\n▶ Encerrando server e túnel...");
   server.kill();

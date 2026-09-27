@@ -42,6 +42,7 @@ export function getChatMessage(id: string) {
     message_type: row.message_type,
     target: row.target ?? undefined,
     metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    roll_details: row.message_type === "roll" && row.metadata ? JSON.parse(row.metadata) : undefined,
     created_at: row.created_at,
   } as ChatMessage;
 }
@@ -53,6 +54,7 @@ export function getChatMessagesForSession(sessionId: string, role?: Role, reques
     ...row,
     target: row.target ?? undefined,
     metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+    roll_details: row.message_type === "roll" && row.metadata ? JSON.parse(row.metadata) : undefined,
   })) as ChatMessage[];
 
   if (!role || role === "gm") {

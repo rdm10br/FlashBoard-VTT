@@ -3,7 +3,8 @@ import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
-import type { ChatMessage, InviteCodeSummary, Role, ServerMessage  } from "../../../packages/protocol/index.ts";
+import type { ChatMessage, InviteCodeSummary, Role, ServerMessage  } from "@vtt/protocol";
+import type { ConnectionStatus } from "./network/socket";
 
 type Screen = "login" | "lobby" | "game";
 
@@ -42,6 +43,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
   const [session, setSession] = useState<SessionData | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [connStatus, setConnStatus] = useState<ConnectionStatus>("connecting");
 
   const joinCodeFromUrl = new URLSearchParams(window.location.search).get("join");
 
@@ -57,7 +59,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
   useEffect(() => {
     let currentBootId: string | null = null;
 
-    socket.connect((data: ServerMessage) => {
+    socket.connect(
+      (data: ServerMessage) => {
       if (data.type === "CONNECTED") {
       currentBootId = data.payload.boot_id;
       const savedBootId = getSavedBootId();
@@ -152,55 +155,87 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       socket.forwardToGame(data);
-    });
+    },
+    (status) => setConnStatus(status),
+    );
   }, []);
+
+
+  const showReconnectBanner = connStatus === "reconnecting" || connStatus === "closed";
+
+  const reconnectBanner = showReconnectBanner ? (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+      background: connStatus === "closed" ? "rgba(127,0,0,0.92)" : "rgba(30,30,30,0.92)",
+      color: "#f9fafb",
+      padding: "10px 20px",
+      display: "flex", alignItems: "center", gap: "12px",
+      fontFamily: "system-ui, sans-serif", fontSize: "14px",
+      backdropFilter: "blur(4px)",
+      borderBottom: "1px solid rgba(255,255,255,0.1)",
+    }}>
+      <span style={{ fontSize: "18px" }}>{connStatus === "closed" ? "✖" : "⟳"}</span>
+      {connStatus === "reconnecting"
+        ? "Conexão perdida — reconectando automaticamente…"
+        : "Sem conexão com o servidor."}
+    </div>
+  ) : null;
 
   if (screen === "login") {
     return (
-      <Login
-        error={userError}
-        onLogin={(nickname) => {
-          setUserError(null);
-          socket.send({ type: "USER_LOGIN", payload: { nickname } });
-        }}
-      />
+      <>
+        {reconnectBanner}
+        <Login
+          error={userError}
+          onLogin={(nickname) => {
+            setUserError(null);
+            socket.send({ type: "USER_LOGIN", payload: { nickname } });
+          }}
+        />
+      </>
     );
   }
 
   if (screen === "lobby" && user) {
     return (
-      <Lobby
-        nickname={user.nickname}
-        sessions={user.sessions}
-        serverError={sessionError}
-        onSessionCreate={(name) => {
-          setSessionError(null);
-          socket.send({ type: "SESSION_CREATE", payload: { name } });
-        }}
-        onSessionJoin={(code) => {
-          setSessionError(null);
-          socket.send({ type: "SESSION_JOIN", payload: { code } });
-        }}
-        onSessionEnter={(session_id) => {
-          setSessionError(null);
-          socket.send({ type: "SESSION_ENTER", payload: { session_id } });
-        }}
-        onLogout={handleLogout}
-      />
+      <>
+        {reconnectBanner}
+        <Lobby
+          nickname={user.nickname}
+          sessions={user.sessions}
+          serverError={sessionError}
+          onSessionCreate={(name) => {
+            setSessionError(null);
+            socket.send({ type: "SESSION_CREATE", payload: { name } });
+          }}
+          onSessionJoin={(code) => {
+            setSessionError(null);
+            socket.send({ type: "SESSION_JOIN", payload: { code } });
+          }}
+          onSessionEnter={(session_id) => {
+            setSessionError(null);
+            socket.send({ type: "SESSION_ENTER", payload: { session_id } });
+          }}
+          onLogout={handleLogout}
+        />
+      </>
     );
   }
 
   if (screen === "game" && session) {
     return (
-      <SessionInfo
-        session_id={session.session_id}
-        sessionName={session.session_name}
-        nickname={session.nickname}
-        role={session.role}
-        invite_codes={session.invite_codes}
-        socket={socket}
-        chat={session.chat}
-      />
+      <>
+        {reconnectBanner}
+        <SessionInfo
+          session_id={session.session_id}
+          sessionName={session.session_name}
+          nickname={session.nickname}
+          role={session.role}
+          invite_codes={session.invite_codes}
+          socket={socket}
+          chat={session.chat}
+        />
+      </>
     );
   }
 

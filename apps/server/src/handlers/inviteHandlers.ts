@@ -1,12 +1,13 @@
-import type { ClientMessage, CreateInvitePayload } from "../../../../packages/protocol";
+import type { ClientMessage, CreateInvitePayload } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { createInviteCode, getInviteCode, deleteInviteCode } from "../db";
+import { createInviteCode, getInviteCode, deleteInviteCode } from "../db/index.js";
 import { toInviteSummary } from "../services/inviteService.js";
 import { broadcastToSession } from "../ws/broadcast.js";
 
 function handleInviteCreate(payload: CreateInvitePayload, ctx: HandlerContext) {
   const { state } = ctx;
   if (state.role !== "gm") return;
+  if (!payload || !payload.role) return;
 
   const { role, max_uses, expires_at } = payload;
   const code = createInviteCode({
@@ -26,6 +27,7 @@ function handleInviteCreate(payload: CreateInvitePayload, ctx: HandlerContext) {
 function handleInviteDelete(payload: { code: string }, ctx: HandlerContext) {
   const { state } = ctx;
   if (state.role !== "gm") return;
+  if (!payload?.code || typeof payload.code !== "string") return;
   deleteInviteCode(payload.code);
   broadcastToSession(state.session_id!, { type: "INVITE_DELETED", payload: { code: payload.code } });
 }

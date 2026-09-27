@@ -17,6 +17,7 @@ dist-ssr
 .history/
 *.db*
 *.env*
+tunnel-config.yml
 
 # Editor directories and files
 # .vscode/*

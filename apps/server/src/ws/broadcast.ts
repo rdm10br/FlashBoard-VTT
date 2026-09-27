@@ -1,11 +1,15 @@
 import { WebSocket } from "ws";
-import type { ServerMessage } from "../../../../packages/protocol";
+import type { ServerMessage } from "@vtt/protocol";
 import { clientRegistry } from "../clientRegistry.js";
 import { getSceneState } from "../services/gameService.js";
 
 export function send(ws: WebSocket, msg: ServerMessage) {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg));
+    try {
+      ws.send(JSON.stringify(msg));
+    } catch (err) {
+      console.error("Falha ao enviar mensagem WebSocket:", err);
+    }
   }
 }
 
