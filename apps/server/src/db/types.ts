@@ -1,3 +1,4 @@
+// import { ChatMessage } from "@vtt/protocol";
 export type Role = "gm" | "player" | "viewer";
 
 export type User = { id: string; nickname: string };

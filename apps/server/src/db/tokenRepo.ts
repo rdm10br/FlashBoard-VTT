@@ -21,7 +21,7 @@ export function getTokensForScene(sceneId: string) {
 
 export function getTokensForSession(sessionId: string) {
   return db.prepare(
-    `SELECT t.x, t.y, t.created_at, s.name AS scene_name
+    `SELECT t.x, t.y, t.updated_at AS created_at, s.name AS scene_name
      FROM tokens t
      JOIN scenes s ON s.id = t.scene_id
      WHERE s.session_id = ?

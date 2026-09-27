@@ -99,6 +99,8 @@ export type ClientMessage =
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
   | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
+  | { type: "BACKUP_EXPORT_REQUEST"; payload: { session_id: string } }
+  | { type: "BACKUP_IMPORT_GRANT_REQUEST"; payload: {} }
   | { type: "CHAT_SEND"; payload: { text: string } };
 
 // --- Mensagens Server → Client ---
@@ -117,6 +119,7 @@ export type ServerMessage =
   | { type: "SCENE_VISIBILITY_CHANGED"; payload: { scene_id: string; visible: boolean } }
   | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
+  | { type: "BACKUP_GRANT_ISSUED"; payload: { token: string; expires_at: number; kind: "export" | "import" } }
   | { type: "CHAT_RECEIVE"; payload: ChatMessage };
 
 export type Message = ClientMessage | ServerMessage;

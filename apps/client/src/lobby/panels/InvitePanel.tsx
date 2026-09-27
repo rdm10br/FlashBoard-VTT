@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { InviteCodeSummary, Role } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
+import { API_ORIGIN } from "../../network/apiBase";
 
 type InvitePanelProps = {
   session_id: string;
@@ -14,7 +15,15 @@ export function InvitePanel({ session_id, invite_codes, socket }: InvitePanelPro
   const [maxUses, setMaxUses] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<string>("");
 
-  const origin = window.location.origin;
+  useEffect(() => {
+    socket.setBackupHandler((data) => {
+      if (data.type === "BACKUP_GRANT_ISSUED" && data.payload.kind === "export") {
+        const url = `${API_ORIGIN}/backup/session/${session_id}?token=${data.payload.token}`;
+        window.open(url, "_blank");
+      }
+    });
+    return () => socket.setBackupHandler(null);
+  }, [session_id]);
 
   function copy(text: string, label: string) {
     navigator.clipboard.writeText(text);
@@ -48,6 +57,8 @@ export function InvitePanel({ session_id, invite_codes, socket }: InvitePanelPro
     <div style={styles.codes}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
         <p style={styles.codesTitle}>Convites <span style={styles.activeCount}>({invite_codes.length} ativos)</span></p>
+        <button style={styles.copyBtn} onClick={() => socket.send({ type: "BACKUP_EXPORT_REQUEST", payload: { session_id } })}
+        >Baixar backup</button>
       </div>
       <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginTop: "6px" }}>
         <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as Role)} style={{ background: "#0f172a", color: "#f3f4f6", border: "1px solid #2e303a", borderRadius: "4px", padding: "4px" }}>
@@ -85,7 +96,7 @@ export function InvitePanel({ session_id, invite_codes, socket }: InvitePanelPro
             <button style={styles.copyBtn} onClick={() => copy(inv.code, `code-${inv.code}`)}>
               {copied === `code-${inv.code}` ? "✓" : "Código"}
             </button>
-            <button style={styles.copyBtn} onClick={() => copy(`${origin}/?join=${inv.code}`, `link-${inv.code}`)}>
+            <button style={styles.copyBtn} onClick={() => copy(`${API_ORIGIN}/?join=${inv.code}`, `link-${inv.code}`)}>
               {copied === `link-${inv.code}` ? "✓" : "Link"}
             </button>
             <button style={styles.copyBtn} onClick={() => deleteInvite(inv.code)}>Excluir</button>

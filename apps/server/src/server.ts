@@ -9,6 +9,7 @@ import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
 import { randomUUID } from "crypto";
+import { consumeGrant } from "./state/backupGrants.js";
 
 const app = Fastify();
 const BOOT_ID = randomUUID();
@@ -48,15 +49,35 @@ const start = async () => {
 
   app.get("/backup/session/:session_id", async (request, reply) => {
     const session_id = (request.params as { session_id: string }).session_id;
+    const token = (request.query as Record<string, string> | undefined)?.token;
+
+    if (!token || !consumeGrant(token, "export", session_id)) {
+      reply.code(401);
+      return { error: "Token de exportação inválido, expirado ou já utilizado." };
+    }
+
     const backup = getSessionBackup(session_id);
     if (!backup) {
       reply.code(404);
       return { error: "Sessão não encontrada." };
     }
+
+    const safeName = backup.session_name.replace(/[^a-zA-Z0-9_-]+/g, "_");
+    const filename = `vtt-backup-${safeName}-${Date.now()}.json`;
+
+    reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+    reply.type("application/json");
     return backup;
   });
 
   app.post("/backup/session/import", async (request, reply) => {
+    const token = (request.query as Record<string, string> | undefined)?.token;
+
+    if (!token || !consumeGrant(token, "import")) {
+      reply.code(401);
+      return { error: "Token de importação inválido, expirado ou já utilizado." };
+    }
+
     const body = request.body as SessionBackup & { target_name?: string };
     if (!body || !body.session_name || !body.owner_nickname) {
       reply.code(400);

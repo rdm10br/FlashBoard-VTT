@@ -154,6 +154,11 @@ export function App({ socket, onSessionJoined }: AppProps) {
         return;
       }
 
+      if (data.type === "BACKUP_GRANT_ISSUED") {
+        socket.forwardToBackup(data);
+        return;
+      }
+
       socket.forwardToGame(data);
     },
     (status) => setConnStatus(status),
@@ -204,6 +209,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           nickname={user.nickname}
           sessions={user.sessions}
           serverError={sessionError}
+          socket={socket}
           onSessionCreate={(name) => {
             setSessionError(null);
             socket.send({ type: "SESSION_CREATE", payload: { name } });

@@ -8,7 +8,16 @@ export class SocketManager {
   private messageHandler: ((data: ServerMessage) => void) | null = null;
   private gameHandler: ((data: ServerMessage) => void) | null = null;
   private statusHandler: ((status: ConnectionStatus) => void) | null = null;
+  private backupHandler: ((data: ServerMessage) => void) | null = null;
   private queue: ClientMessage[] = [];
+  
+  setBackupHandler(handler: ((data: ServerMessage) => void) | null) {
+    this.backupHandler = handler;
+  }
+
+  forwardToBackup(data: ServerMessage) {
+    this.backupHandler?.(data);
+  }
 
   // Backoff exponencial: 1s, 2s, 4s, 8s, 16s, 30s (teto)
   private retryDelay = 1000;

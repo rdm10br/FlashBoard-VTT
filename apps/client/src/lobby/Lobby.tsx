@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Role } from "@vtt/protocol";
+import { SocketManager } from "../network/socket";
+import { API_ORIGIN } from "../network/apiBase";
 
 type Tab = "create" | "join";
 
@@ -7,6 +9,7 @@ type LobbyProps = {
   nickname: string;
   sessions: { id: string; name: string; owner_id: string; role: Role }[];
   serverError?: string | null;
+  socket: SocketManager; // NOVO
   onSessionCreate: (name: string) => void;
   onSessionJoin: (code: string) => void;
   onSessionEnter: (session_id: string) => void;
@@ -17,6 +20,7 @@ export function Lobby({
   nickname,
   sessions,
   serverError,
+  socket,
   onSessionCreate,
   onSessionJoin,
   onSessionEnter,
@@ -26,6 +30,48 @@ export function Lobby({
   const [sessionName, setSessionName] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const pendingFileRef = useRef<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    socket.setBackupHandler(async (data) => {
+      if (data.type !== "BACKUP_GRANT_ISSUED" || data.payload.kind !== "import") return;
+      const file = pendingFileRef.current;
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const body = JSON.parse(text);
+        const res = await fetch(`${API_ORIGIN}/backup/session/import?token=${data.payload.token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          setImportMessage(result.error ?? "Falha ao importar backup.");
+        } else {
+          setImportMessage(`Backup importado como "${result.session_name}". Saia e entre novamente para ver a sessão na lista.`);
+        }
+      } catch {
+        setImportMessage("Arquivo de backup inválido.");
+      } finally {
+        pendingFileRef.current = null;
+      }
+    });
+    return () => socket.setBackupHandler(null);
+  }, [socket]);
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    pendingFileRef.current = file;
+    setImportMessage(null);
+    socket.send({ type: "BACKUP_IMPORT_GRANT_REQUEST", payload: {} });
+    e.target.value = "";
+  }
 
   function handleCreate() {
     if (!sessionName.trim()) { setError("Digite o nome da sessão."); return; }
@@ -72,6 +118,20 @@ export function Lobby({
                   </span>
                 </button>
               ))}
+            </div>
+            <div style={styles.section}>
+              <p style={styles.sectionTitle}>Importar backup</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleFileSelected}
+                style={{ display: "none" }}
+              />
+              <button style={styles.logoutBtn} onClick={() => fileInputRef.current?.click()}>
+                Selecionar arquivo de backup
+              </button>
+              {importMessage && <p style={{ color: "#9ca3af", fontSize: "13px" }}>{importMessage}</p>}
             </div>
           </div>
         )}
