@@ -50,7 +50,7 @@ export type SessionJoinedPayload = {
   session_name: string;
   member: Member;
   invite_codes: InviteCodeSummary[];
-  asset_key: string;
+  // asset_key: string;
   scenes: Scene[];
   active_scene_id: string;
   default_token_asset_id: string | null;

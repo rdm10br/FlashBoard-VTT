@@ -149,11 +149,11 @@ const start = async () => {
       return { error: "Asset não encontrado." };
     }
 
-    const session = getSession(asset.session_id);
-    if (!session || !key || key !== session.asset_key) {
-      reply.code(401);
-      return { error: "Acesso não autorizado a este asset." };
-    }
+    // const session = getSession(asset.session_id);
+    // if (!session || !key || key !== session.asset_key) {
+    //   reply.code(401);
+    //   return { error: "Acesso não autorizado a este asset." };
+    // }
 
     const filePath = path.join(UPLOADS_DIR, asset.path);
     reply.type(asset.mime_type);

@@ -73,7 +73,7 @@ export function buildSessionJoinedPayload(
     invite_codes: rawInviteCodes
       .map(toInviteSummary)
       .filter((item): item is InviteCodeSummary => item !== null),
-    asset_key: session.asset_key,
+    // asset_key: session.asset_key,
     scenes: sceneList,
     active_scene_id,
     default_token_asset_id: session.default_token_asset_id,
