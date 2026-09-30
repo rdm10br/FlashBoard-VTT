@@ -53,13 +53,26 @@ export type CreateInviteOptions = {
   expiresAt?: number;
 };
 
+export type BackupChatMessage = {
+  sender: string;
+  text: string;
+  timestamp: number;
+  created_at: number;
+  message_type: "text" | "roll" | "whisper" | "secret" | "system";
+  target?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type SessionBackup = {
+  version: 2;
   session_name: string;
   owner_nickname: string;
+  max_dice_count: number;
+  max_dice_sides: number;
   members: { nickname: string; role: Role; created_at: number }[];
   invite_codes: { role: Role; use_count: number; max_uses: number | null; expires_at: number | null; created_at: number }[];
   scenes: { name: string; is_visible: boolean; created_at: number }[];
-  tokens: { scene_name: string; x: number; y: number; created_at: number }[];
-  chat_messages: { sender: string; text: string; timestamp: number; created_at: number }[];
+  tokens: { scene_index: number; x: number; y: number; created_at: number }[];
+  chat_messages: BackupChatMessage[];
   created_at: number;
 };

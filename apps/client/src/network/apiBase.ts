@@ -10,3 +10,11 @@ function computeApiOrigin(): string {
 }
 
 export const API_ORIGIN = computeApiOrigin();
+
+export const PUBLIC_ORIGIN = import.meta.env.VITE_PUBLIC_URL ?? window.location.origin;
+
+export function assetUrl(assetId: string): string {
+  return `${API_ORIGIN}/api/assets/${assetId}`;
+}
+
+export const ASSET_UPLOAD_URL = `${API_ORIGIN}/api/assets/upload`;

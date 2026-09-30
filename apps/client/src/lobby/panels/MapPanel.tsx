@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { SceneMap, ServerMessage } from "@vtt/protocol";
-import { API_ORIGIN } from "../../network/apiBase";
+import { ASSET_UPLOAD_URL, assetUrl } from "../../network/apiBase";
 import { SocketManager } from "../../network/socket";
 
 type MapPanelProps = {
@@ -56,7 +56,7 @@ export function MapPanel({ session_id, scene_id, map, socket }: MapPanelProps) {
       const formData = new FormData();
       formData.append("file", file);
       const query = new URLSearchParams({ token: grant, session_id, kind: "map_image" });
-      const response = await fetch(`${API_ORIGIN}/assets/upload?${query}`, { method: "POST", body: formData });
+      const response = await fetch(`${ASSET_UPLOAD_URL}?${query}`, { method: "POST", body: formData });
       const result = await response.json() as { id?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? "Falha ao enviar o mapa.");
 
@@ -103,7 +103,7 @@ export function MapPanel({ session_id, scene_id, map, socket }: MapPanelProps) {
       </p>
       {map && (
         <div style={styles.preview}>
-          <img src={`${API_ORIGIN}/assets/${map.asset_id}`} alt="Mapa atual da cena" style={styles.image} />
+          <img src={assetUrl(map.asset_id)} alt="Mapa atual da cena" style={styles.image} />
           <span style={styles.note}>Escala: {Math.round(map.scale * 100)}%</span>
         </div>
       )}
@@ -154,6 +154,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "11px",
     padding: "5px 8px",
   },
-  activeButton: { borderColor: "#38bdf8", color: "#bae6fd" },
+  // activeButton: { borderColor: "#38bdf8", color: "#bae6fd" },
+  activeButton: { border: "1px solid #38bdf8", color: "#bae6fd" },
   status: { margin: 0, color: "#bae6fd", fontSize: "12px", lineHeight: 1.45 },
 };

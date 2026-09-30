@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Role, ServerMessage } from "@vtt/protocol";
-import { API_ORIGIN } from "../../network/apiBase";
+import { ASSET_UPLOAD_URL } from "../../network/apiBase";
 import { SocketManager } from "../../network/socket";
 
 type TokenPanelProps = {
@@ -36,7 +36,7 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
       const formData = new FormData();
       formData.append("file", selectedFile);
       const query = new URLSearchParams({ token: grant, session_id, kind: "token_image" });
-      const response = await fetch(`${API_ORIGIN}/assets/upload?${query}`, { method: "POST", body: formData });
+      const response = await fetch(`${ASSET_UPLOAD_URL}?${query}`, { method: "POST", body: formData });
       const result = await response.json() as { id?: string; error?: string };
       if (!response.ok || !result.id) throw new Error(result.error ?? "Falha ao enviar imagem.");
 
@@ -79,7 +79,8 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
             style={{ ...styles.copyBtn, background: "#aa3bff", color: "#fff", border: "none" }}
             onClick={() => window.dispatchEvent(new CustomEvent("vtt-create-token"))}
           >
-            ➕
+            {/* ➕ */}
+            +
           </button>
           <div style={{ color: "#9ca3af", fontSize: "12px" }}>Clique para criar um token centralizado</div>
           </div>

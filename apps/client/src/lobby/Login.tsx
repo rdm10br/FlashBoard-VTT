@@ -169,7 +169,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#9ca3af",
     cursor: "pointer",
   },
-  activeTab: { borderColor: "#aa3bff", color: "#f3f4f6" },
+  // activeTab: { borderColor: "#aa3bff", color: "#f3f4f6" },
+  activeTab: { border: "1px solid #aa3bff", color: "#f3f4f6" },
   field: { display: "flex", flexDirection: "column", gap: "6px", color: "#9ca3af", fontSize: "13px" },
   input: {
     padding: "10px 12px",

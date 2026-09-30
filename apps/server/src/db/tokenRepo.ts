@@ -15,18 +15,19 @@ export function getToken(id: string) {
 
 export function getTokensForScene(sceneId: string) {
   return db.prepare(
-    "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
+    // "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
+    "SELECT * FROM tokens WHERE scene_id = ? ORDER BY rowid"
   ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; created_at: number }[];
 }
 
 export function getTokensForSession(sessionId: string) {
   return db.prepare(
-    `SELECT t.x, t.y, t.updated_at AS created_at, s.name AS scene_name
+    `SELECT t.x, t.y, t.updated_at AS created_at, s.id AS scene_id, s.name AS scene_name
      FROM tokens t
      JOIN scenes s ON s.id = t.scene_id
      WHERE s.session_id = ?
-     ORDER BY t.id`
-  ).all(sessionId) as { scene_name: string; x: number; y: number; created_at: number }[];
+     ORDER BY t.rowid`
+  ).all(sessionId) as { scene_id: string; scene_name: string; x: number; y: number; created_at: number }[];
 }
 
 export function moveToken(id: string, x: number, y: number) {

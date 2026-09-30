@@ -16,6 +16,7 @@ import multipart from "@fastify/multipart";
 import { createWriteStream } from "fs";
 import { pipeline } from "stream/promises";
 import { UPLOADS_DIR, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "./storage/uploads.js";
+import { BackupValidationError, parseSessionBackup, parseTargetName } from "./services/backupValidation.js";
 
 const app = Fastify();
 
@@ -61,7 +62,8 @@ const clientDist = resolveClientDist();
 if (clientDist) {
   app.register(fastifyStatic, { root: clientDist });
   app.setNotFoundHandler((request, reply) => {
-    if (request.raw.url?.startsWith("/backup")) {
+    const url = request.raw.url ?? "";
+    if (url.startsWith("/backup") || url.startsWith("/api") || url.startsWith("/assets")) {
       reply.code(404).send({ error: "not found" });
       return;
     }
@@ -80,7 +82,7 @@ app.get("/health", async () => ({ status: "ok" }));
 const start = async () => {
   const PORT = 3000;
 
-  app.post("/assets/upload", async (request, reply) => {
+  app.post("/api/assets/upload", async (request, reply) => {
     const query = request.query as Record<string, string> | undefined;
     const token = query?.token;
     const session_id = query?.session_id;
@@ -145,7 +147,7 @@ const start = async () => {
     return { id: asset.id, filename: asset.filename, size_bytes: asset.size_bytes };
   });
 
-  app.get("/assets/:id", async (request, reply) => {
+  app.get("/api/assets/:id", async (request, reply) => {
     const id = (request.params as { id: string }).id;
     const key = (request.query as Record<string, string> | undefined)?.key;
 
@@ -190,7 +192,7 @@ const start = async () => {
     return backup;
   });
 
-  app.post("/backup/session/import", async (request, reply) => {
+  app.post("/backup/session/import", { bodyLimit: 10 * 1024 * 1024 }, async (request, reply) => {
     const token = (request.query as Record<string, string> | undefined)?.token;
 
     const grant = token ? consumeGrant(token, "import") : undefined;
@@ -199,13 +201,20 @@ const start = async () => {
       return { error: "Token de importação inválido, expirado ou já utilizado." };
     }
 
-    const body = request.body as SessionBackup & { target_name?: string };
-    if (!body || !body.session_name || !body.owner_nickname) {
-      reply.code(400);
-      return { error: "Backup inválido." };
+    let backup: SessionBackup;
+    let targetName: string | undefined;
+    try {
+      backup = parseSessionBackup(request.body);
+      targetName = parseTargetName(request.body);
+    } catch (error) {
+      if (error instanceof BackupValidationError) {
+        reply.code(400);
+        return { error: error.message };
+      }
+      throw error;
     }
 
-    const result = importSessionBackup(body, body.target_name, grant.user_id);
+    const result = importSessionBackup(backup, targetName, grant.user_id);
     return { session_id: result.session.id, session_name: result.session.name, invite_codes: result.invite_codes };
   });
 

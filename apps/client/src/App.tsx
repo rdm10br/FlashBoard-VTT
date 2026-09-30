@@ -92,7 +92,12 @@ export function App({ socket, onSessionJoined }: AppProps) {
       if (data.payload.is_admin) socket.send({ type: "ADMIN_LIST_USERS", payload: {} });
 
       // Se veio via link de convite, entra direto
+      // if (joinCodeFromUrl) {
+      //   socket.send({ type: "SESSION_JOIN", payload: { code: joinCodeFromUrl } });
+      //   return;
+      // }
       if (joinCodeFromUrl) {
+        window.history.replaceState({}, "", window.location.pathname);
         socket.send({ type: "SESSION_JOIN", payload: { code: joinCodeFromUrl } });
         return;
       }

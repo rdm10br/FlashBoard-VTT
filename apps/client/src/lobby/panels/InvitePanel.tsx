@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { InviteCodeSummary, Role } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
-import { API_ORIGIN } from "../../network/apiBase";
+import { API_ORIGIN, PUBLIC_ORIGIN } from "../../network/apiBase";
 
 type InvitePanelProps = {
   session_id: string;
@@ -96,7 +96,8 @@ export function InvitePanel({ session_id, invite_codes, socket }: InvitePanelPro
             <button style={styles.copyBtn} onClick={() => copy(inv.code, `code-${inv.code}`)}>
               {copied === `code-${inv.code}` ? "✓" : "Código"}
             </button>
-            <button style={styles.copyBtn} onClick={() => copy(`${API_ORIGIN}/?join=${inv.code}`, `link-${inv.code}`)}>
+            {/* <button style={styles.copyBtn} onClick={() => copy(`${API_ORIGIN}/?join=${inv.code}`, `link-${inv.code}`)}> */}
+            <button style={styles.copyBtn} onClick={() => copy(`${PUBLIC_ORIGIN}/?join=${inv.code}`, `link-${inv.code}`)}>
               {copied === `link-${inv.code}` ? "✓" : "Link"}
             </button>
             <button style={styles.copyBtn} onClick={() => deleteInvite(inv.code)}>Excluir</button>

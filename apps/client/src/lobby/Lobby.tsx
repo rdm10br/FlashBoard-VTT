@@ -139,22 +139,22 @@ export function Lobby({
                 </button>
               ))}
             </div>
-            <div style={styles.section}>
-              <p style={styles.sectionTitle}>Importar backup</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/json"
-                onChange={handleFileSelected}
-                style={{ display: "none" }}
-              />
-              <button style={styles.logoutBtn} onClick={() => fileInputRef.current?.click()}>
-                Selecionar arquivo de backup
-              </button>
-              {importMessage && <p style={{ color: "#9ca3af", fontSize: "13px" }}>{importMessage}</p>}
-            </div>
           </div>
         )}
+        <div style={styles.section}>
+          <p style={styles.sectionTitle}>Importar backup</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            onChange={handleFileSelected}
+            style={{ display: "none" }}
+          />
+          <button style={styles.logoutBtn} onClick={() => fileInputRef.current?.click()}>
+            Selecionar arquivo de backup
+          </button>
+          {importMessage && <p style={{ color: "#9ca3af", fontSize: "13px" }}>{importMessage}</p>}
+        </div>
 
         {/* Tabs */}
         <div style={styles.tabs}>

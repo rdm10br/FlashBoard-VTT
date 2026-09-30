@@ -6,7 +6,7 @@ import type { ServerMessage } from "@vtt/protocol";
 import { SceneMapLayer } from "../engine/sceneMapLayer";
 import { SocketManager } from "../network/socket";
 import { registerTokenInteractions, type SelectionState } from "./tokenInteractions";
-import { API_ORIGIN } from "../network/apiBase";
+import { assetUrl } from "../network/apiBase";
 
 // Orquestra o canvas Pixi (grid + tokens) e traduz mensagens do servidor
 // em mudanças visuais. É a única peça que fala tanto com o Pixi quanto com o socket.
@@ -131,25 +131,25 @@ export class GameController {
 
     if (data.type === "SCENE_STATE") {
       this.currentSceneId = data.payload.scene_id;
-      void this.maps.setMap(data.payload.map, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
+      void this.maps.setMap(data.payload.map, (assetId) => assetUrl(assetId));
       this.clearTokens();
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
         this.registerToken(token);
-        if (t.asset_id) void this.tokens.setImage(t.id, `${API_ORIGIN}/assets/${t.asset_id}`);
+        if (t.asset_id) void this.tokens.setImage(t.id, assetUrl(t.asset_id));
       }
       return;
     }
 
     if (data.type === "SCENE_MAP_CHANGED") {
       if (data.payload.scene_id !== this.currentSceneId) return;
-      void this.maps.setMap(data.payload.map, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
+      void this.maps.setMap(data.payload.map, (assetId) => assetUrl(assetId));
       return;
     }
 
     if (data.type === "SCENE_PUSHED") {
       this.clearTokens();
-      void this.maps.setMap(null, (assetId) => `${API_ORIGIN}/assets/${assetId}`);
+      void this.maps.setMap(null, (assetId) => assetUrl(assetId));
       this.currentSceneId = null;
       this.socket.send({ type: "SCENE_SWITCH", payload: { scene_id: data.payload.scene_id } });
       return;
@@ -158,7 +158,7 @@ export class GameController {
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
       this.registerToken(token);
-      if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, `${API_ORIGIN}/assets/${data.payload.asset_id}`);
+      if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
       return;
     }
 
@@ -168,7 +168,7 @@ export class GameController {
     }
 
     if (data.type === "TOKEN_ASSET_CHANGED") {
-      void this.tokens.setImage(data.payload.id, `${API_ORIGIN}/assets/${data.payload.asset_id}`);
+      void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
     }
   }
 }
