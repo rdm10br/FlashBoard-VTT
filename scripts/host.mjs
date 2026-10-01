@@ -2,7 +2,7 @@ import { spawnSync, spawn } from "child_process";
 import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { bin as cloudflaredBin, install as installCloudflared } from "cloudflared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
