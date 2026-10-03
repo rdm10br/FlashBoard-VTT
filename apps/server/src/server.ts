@@ -4,19 +4,16 @@ import path from "path";
 import fs from "fs";
 import { WebSocketServer, WebSocket } from "ws";
 import type { ClientMessage } from "@vtt/protocol";
-import { getSessionBackup, importSessionBackup, createAsset, getAsset, getSession, type SessionBackup } from "./db/index.js";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
 import { isAdminBootstrapAvailable, isAuthSessionActive } from "./services/authService.js";
 import { randomUUID } from "crypto";
 import { isIP } from "net";
-import { consumeGrant } from "./state/grants.js";
 import multipart from "@fastify/multipart";
-import { createWriteStream } from "fs";
-import { pipeline } from "stream/promises";
-import { UPLOADS_DIR, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "./storage/uploads.js";
-import { BackupValidationError, parseSessionBackup, parseTargetName } from "./services/backupValidation.js";
+import { MAX_UPLOAD_BYTES } from "./storage/uploads.js";
+import { assetRoutes } from "./http/assetRoutes.js";
+import { backupRoutes } from "./http/backupRoutes.js";
 
 const app = Fastify();
 
@@ -46,6 +43,10 @@ app.addHook("onRequest", (request, reply, done) => {
 app.register(multipart, {
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
+
+app.register(assetRoutes);
+app.register(backupRoutes);
+
 const BOOT_ID = randomUUID();
 
 function resolveClientDist(): string | null {
@@ -81,142 +82,6 @@ app.get("/health", async () => ({ status: "ok" }));
 
 const start = async () => {
   const PORT = 3000;
-
-  app.post("/api/assets/upload", async (request, reply) => {
-    const query = request.query as Record<string, string> | undefined;
-    const token = query?.token;
-    const session_id = query?.session_id;
-    const kind = query?.kind;
-
-    if (kind !== "token_image" && kind !== "map_image") {
-      reply.code(400);
-      return { error: "Tipo de asset inválido." };
-    }
-
-    const grant =
-      token && session_id
-        ? consumeGrant(token, "asset_upload", session_id, kind)
-        : undefined;
-    if (!grant || !session_id) {
-      reply.code(401);
-      return { error: "Token de upload inválido, expirado ou já utilizado." };
-    }
-
-    const file = await request.file();
-    if (!file) {
-      reply.code(400);
-      return { error: "Nenhum arquivo enviado." };
-    }
-
-    const extension = ALLOWED_MIME_TYPES[file.mimetype];
-    if (!extension) {
-      reply.code(415);
-      return { error: `Tipo de arquivo não permitido: ${file.mimetype}` };
-    }
-
-    const diskName = `${randomUUID()}${extension}`;
-    const diskPath = path.join(UPLOADS_DIR, diskName);
-
-    try {
-      await pipeline(file.file, createWriteStream(diskPath));
-    } catch {
-      await fs.promises.unlink(diskPath).catch(() => {});
-      reply.code(500);
-      return { error: "Falha ao salvar o arquivo." };
-    }
-
-    // @fastify/multipart trunca o stream ao atingir o limite configurado no plugin;
-    // essa flag indica que o arquivo era maior do que o permitido.
-    if (file.file.truncated) {
-      await fs.promises.unlink(diskPath).catch(() => {});
-      reply.code(413);
-      return { error: `Arquivo excede o limite de ${MAX_UPLOAD_BYTES / 1024 / 1024}MB.` };
-    }
-
-    const stats = await fs.promises.stat(diskPath);
-
-    const asset = createAsset({
-      sessionId: session_id,
-      kind,
-      filename: file.filename,
-      path: diskName,
-      mimeType: file.mimetype,
-      sizeBytes: stats.size,
-    });
-
-    return { id: asset.id, filename: asset.filename, size_bytes: asset.size_bytes };
-  });
-
-  app.get("/api/assets/:id", async (request, reply) => {
-    const id = (request.params as { id: string }).id;
-    const key = (request.query as Record<string, string> | undefined)?.key;
-
-    const asset = getAsset(id);
-    if (!asset) {
-      reply.code(404);
-      return { error: "Asset não encontrado." };
-    }
-
-    // const session = getSession(asset.session_id);
-    // if (!session || !key || key !== session.asset_key) {
-    //   reply.code(401);
-    //   return { error: "Acesso não autorizado a este asset." };
-    // }
-
-    const filePath = path.join(UPLOADS_DIR, asset.path);
-    reply.type(asset.mime_type);
-    return reply.send(fs.createReadStream(filePath));
-  });
-
-  app.get("/backup/session/:session_id", async (request, reply) => {
-    const session_id = (request.params as { session_id: string }).session_id;
-    const token = (request.query as Record<string, string> | undefined)?.token;
-
-    const grant = token ? consumeGrant(token, "export", session_id) : undefined;
-    if (!grant) {
-      reply.code(401);
-      return { error: "Token de exportação inválido, expirado ou já utilizado." };
-    }
-
-    const backup = getSessionBackup(session_id);
-    if (!backup) {
-      reply.code(404);
-      return { error: "Sessão não encontrada." };
-    }
-
-    const safeName = backup.session_name.replace(/[^a-zA-Z0-9_-]+/g, "_");
-    const filename = `vtt-backup-${safeName}-${Date.now()}.json`;
-
-    reply.header("Content-Disposition", `attachment; filename="${filename}"`);
-    reply.type("application/json");
-    return backup;
-  });
-
-  app.post("/backup/session/import", { bodyLimit: 10 * 1024 * 1024 }, async (request, reply) => {
-    const token = (request.query as Record<string, string> | undefined)?.token;
-
-    const grant = token ? consumeGrant(token, "import") : undefined;
-    if (!grant) {
-      reply.code(401);
-      return { error: "Token de importação inválido, expirado ou já utilizado." };
-    }
-
-    let backup: SessionBackup;
-    let targetName: string | undefined;
-    try {
-      backup = parseSessionBackup(request.body);
-      targetName = parseTargetName(request.body);
-    } catch (error) {
-      if (error instanceof BackupValidationError) {
-        reply.code(400);
-        return { error: error.message };
-      }
-      throw error;
-    }
-
-    const result = importSessionBackup(backup, targetName, grant.user_id);
-    return { session_id: result.session.id, session_name: result.session.name, invite_codes: result.invite_codes };
-  });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
   console.log(`HTTP server rodando na porta ${PORT}`);

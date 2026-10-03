@@ -1,5 +1,4 @@
 *.bk
-*-lock.json
 
 # Logs
 logs
@@ -16,7 +15,7 @@ dist-ssr
 *.local
 .history/
 *.db*
-*.env*
+*.env.development
 tunnel-config.yml
 **/uploads/*
 

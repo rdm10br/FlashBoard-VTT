@@ -15,7 +15,6 @@
   /* include declara explicitamente quais arquivos compilar —
      o tsc não vai tocar no resto do monorepo */
   "include": [
-    "src/**/*",
     "./packages/**/*"
   ],
   "exclude": ["node_modules", "dist"]

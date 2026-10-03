@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "main": "dist/server.js",
   "scripts": {
     "test": "tsx --test src/services/authService.test.ts",
@@ -27,7 +27,6 @@
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.10",
     "cloudflared": "^0.7.1",
-    "tsc-alias": "^1.8.16",
-    "typescript": "^5.4.0"
+    "tsc-alias": "^1.8.16"
   }
 }

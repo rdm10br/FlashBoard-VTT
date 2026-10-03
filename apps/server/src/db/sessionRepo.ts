@@ -3,7 +3,7 @@ import { generateId } from "./idGenerators.js";
 import { randomUUID } from "crypto";
 import type { Session, Role } from "./types.js";
 
-const SESSION_COLS = "id, name, owner_id, active_scene_id, default_token_asset_id, max_dice_count, max_dice_sides, created_at";
+const SESSION_COLS = "id, name, owner_id, active_scene_id, default_token_asset_id, max_dice_count, max_dice_sides, asset_key, created_at";
 
 export function getSession(id: string): Session | undefined {
   return db.prepare(`SELECT ${SESSION_COLS} FROM sessions WHERE id = ?`).get(id) as Session | undefined;
@@ -18,9 +18,9 @@ export function createSession(name: string, ownerId: string, maxDiceCount = 100,
   const createdAt = Math.floor(Date.now() / 1000);
   const assetKey = randomUUID();
   db.prepare(
-    "INSERT INTO sessions (id, name, owner_id, max_dice_count, max_dice_sides, created_at) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(id, name, ownerId, maxDiceCount, maxDiceSides, createdAt);
-  return { id, name, owner_id: ownerId, active_scene_id: null, default_token_asset_id: null, max_dice_count: maxDiceCount, max_dice_sides: maxDiceSides, created_at: createdAt };
+    "INSERT INTO sessions (id, name, owner_id, max_dice_count, max_dice_sides, asset_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, name, ownerId, maxDiceCount, maxDiceSides, assetKey, createdAt);
+  return { id, name, owner_id: ownerId, active_scene_id: null, default_token_asset_id: null, max_dice_count: maxDiceCount, max_dice_sides: maxDiceSides, asset_key: assetKey, created_at: createdAt };
 }
 
 export function updateSessionDiceLimits(id: string, maxDiceCount: number, maxDiceSides: number): void {
