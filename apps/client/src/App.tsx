@@ -5,6 +5,7 @@ import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
 import type { ChatMessage, InviteCodeSummary, Role, ServerMessage  } from "@vtt/protocol";
 import type { ConnectionStatus } from "./network/socket";
+import { setAssetKey } from "./network/apiBase";
 
 type Screen = "login" | "lobby" | "game";
 
@@ -65,6 +66,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
     setSessionError(null);
     setAdminError(null);
     setScreen("login");
+    // setAssetKey(null);
   }
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setUserError(null);
         setAdminError(null);
         setScreen("login");
+        setAssetKey(null);
         return;
       }
 
@@ -144,7 +147,9 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       if (data.type === "SESSION_JOINED") {
-        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat } = data.payload;
+        // const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat } = data.payload;
+        const { session_id, session_name, member, invite_codes, scenes, active_scene_id, default_token_asset_id, chat, asset_key } = data.payload;
+        setAssetKey(asset_key);
         setCurrentSceneId(active_scene_id || scenes[0]?.id || null);
         setSceneMap(null);
 

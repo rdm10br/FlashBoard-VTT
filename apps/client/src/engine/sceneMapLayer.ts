@@ -138,7 +138,8 @@ export class SceneMapLayer {
       this.map = { ...this.map, x: this.drag.x + dx, y: this.drag.y + dy };
     } else {
       const proportionalDelta = Math.max(dx / this.imageWidth, dy / this.imageHeight);
-      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.drag.scale * (1 + proportionalDelta)));
+      // const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.drag.scale * (1 + proportionalDelta)));
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.drag.scale + proportionalDelta));
       this.map = { ...this.map, scale };
     }
     this.applyTransform(this.map);

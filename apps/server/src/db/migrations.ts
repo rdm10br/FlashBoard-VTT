@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 
 // Migração incremental: garante que chat_messages tenha as colunas
 // message_type/target/metadata mesmo em bancos criados antes delas existirem.
@@ -73,6 +74,13 @@ export function runMigrations(db: Database.Database) {
   if (!sceneColumnNames.includes("map_scale")) {
     db.exec("ALTER TABLE scenes ADD COLUMN map_scale REAL NOT NULL DEFAULT 1;");
   }
+  if (!sessionColumnNames.includes("asset_key")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN asset_key TEXT;");
+  }
+
+  const withoutKey = db.prepare("SELECT id FROM sessions WHERE asset_key IS NULL").all() as { id: string }[];
+  const fillKey = db.prepare("UPDATE sessions SET asset_key = ? WHERE id = ?");
+  for (const row of withoutKey) fillKey.run(randomUUID(), row.id);
 
   const needsMigration =
     !chatColumnNames.includes("message_type") ||

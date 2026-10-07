@@ -3,6 +3,7 @@ import type { HandlerContext, MessageHandler } from "./types.js";
 import { getAsset, getScene, getSession, getToken } from "../db/index.js";
 import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken } from "../services/gameService.js";
 import { broadcastToScene, send } from "../ws/broadcast.js";
+import { LIMITS } from "@vtt/protocol";
 
 function isTokenImageFromCurrentSession(assetId: string | undefined, sessionId: string): boolean {
   if (!assetId) return true;
@@ -10,10 +11,13 @@ function isTokenImageFromCurrentSession(assetId: string | undefined, sessionId: 
   return asset?.session_id === sessionId && asset.kind === "token_image";
 }
 
+const inBounds = (n: unknown): n is number =>
+  typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.coordinate;
+
 function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: number; asset_id?: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
-  if (!payload || typeof payload.scene_id !== "string" || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
+  if (!payload || typeof payload.scene_id !== "string" || !inBounds(payload.x) || !inBounds(payload.y)) return;
   const scene = getScene(payload.scene_id);
   if (!scene || scene.session_id !== state.session_id) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Cena inválida para criar token." } });
@@ -35,7 +39,7 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
-  if (!payload || typeof payload.id !== "string" || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
+  if (!payload || typeof payload.id !== "string" || !inBounds(payload.x) || !inBounds(payload.y)) return;
   const { id, x, y } = payload;
   const token = getToken(id);
   const scene = token ? getScene(token.scene_id) : undefined;

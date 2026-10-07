@@ -1,4 +1,5 @@
 import type { ClientMessage } from "@vtt/protocol";
+import { LIMITS } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import {
   canEnterScene,
@@ -11,12 +12,30 @@ import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { activeScenesPerSession } from "../state/activeScenes.js";
 
+// function handleSceneCreate(payload: { name: string }, ctx: HandlerContext) {
+//   const { state } = ctx;
+//   if (state.role !== "gm") return;
+//   if (!payload?.name || typeof payload.name !== "string" || !payload.name.trim()) return;
+//   const scene = createSceneForSession(state.session_id!, payload.name.trim());
+//   broadcastToSession(state.session_id!, {
+//     type: "SCENE_CREATED",
+//     payload: { id: scene.id, name: scene.name, is_visible: true },
+//   });
+// }
 function handleSceneCreate(payload: { name: string }, ctx: HandlerContext) {
-  const { state } = ctx;
+  const { state, ws } = ctx;
   if (state.role !== "gm") return;
   if (!payload?.name || typeof payload.name !== "string" || !payload.name.trim()) return;
-  const scene = createSceneForSession(state.session_id!, payload.name.trim());
-  broadcastToSession(state.session_id!, {
+  const name = payload.name.trim();
+  if (name.length > LIMITS.name) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: `O nome da cena deve ter até ${LIMITS.name} caracteres.` } });
+    return;
+  }
+  const scene = createSceneForSession(state.session_id!, name);
+  // Só quem criou recebe: o GameController responde a SCENE_CREATED trocando de cena,
+  // então um broadcast arrastaria todos os jogadores. Quando houver UI de lista de
+  // cenas, use uma mensagem separada (ex.: SCENE_LIST_CHANGED) para os demais.
+  send(ws, {
     type: "SCENE_CREATED",
     payload: { id: scene.id, name: scene.name, is_visible: true },
   });
@@ -32,13 +51,18 @@ function handleSceneSwitch(payload: { scene_id: string }, ctx: HandlerContext) {
 }
 
 function handleScenePush(payload: { scene_id: string }, ctx: HandlerContext) {
-  const { state } = ctx;
+  // const { state } = ctx;
+  const { state, ws } = ctx;
   if (state.role !== "gm") return;
   if (!payload?.scene_id || typeof payload.scene_id !== "string") return;
   const session_id = state.session_id!;
   const { scene_id } = payload;
   const scene = getScene(scene_id);
   if (!scene || scene.session_id !== session_id) return;
+  if (!scene.is_visible) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Torne a cena visível antes de enviá-la aos jogadores." } });
+    return;
+  }
   activeScenesPerSession.set(session_id, scene_id);
 
   for (const client of clientRegistry.inSession(session_id)) {

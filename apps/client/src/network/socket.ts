@@ -13,6 +13,7 @@ export class SocketManager {
   private assetUploadHandlers = new Map<UploadAssetKind, (data: ServerMessage) => void>();
   private queue: ClientMessage[] = [];
   private pendingMessages: ServerMessage[] = [];
+  private hasOpened = false;
   
   setBackupHandler(handler: ((data: ServerMessage) => void) | null) {
     this.backupHandler = handler;
@@ -57,6 +58,7 @@ export class SocketManager {
       console.log("Conectado ao servidor");
       this.retryDelay = 1000; // reseta backoff após sucesso
       this.notifyStatus("open");
+      this.hasOpened = true;
       this.flushQueue();
     };
 
@@ -119,9 +121,13 @@ export class SocketManager {
   send(message: ClientMessage) {
     if (this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
-    } else {
+    } else if (!this.hasOpened) {
       // Guarda e envia quando a conexão reabrir.
       this.queue.push(message);
+    } else {
+      // Depois de uma queda, a conexão nova ainda não está autenticada: reenviar
+      // mensagens antigas só geraria erros e estado inconsistente.
+      console.warn("Mensagem descartada: sem conexão.", message.type);
     }
   }
 

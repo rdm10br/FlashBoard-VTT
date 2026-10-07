@@ -2,12 +2,17 @@ import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import { handleChatCommand } from "../services/chatService.js";
 import { send, broadcastToSession, sendToSessionMembers, broadcastToGMs } from "../ws/broadcast.js";
+import { LIMITS } from "@vtt/protocol";
 
 function handleChatSend(payload: { text: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (!payload?.text || typeof payload.text !== "string" || !payload.text.trim()) return;
   const session_id = state.session_id!;
   const rawText = payload.text.trim();
+  if (rawText.length > LIMITS.chatText) {
+    send(ws, { type: "USER_ERROR", payload: { message: `Mensagem muito longa (máximo ${LIMITS.chatText} caracteres).` } });
+    return;
+  }
   handleChatCommand(
     rawText,
     session_id,

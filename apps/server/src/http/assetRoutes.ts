@@ -89,6 +89,8 @@ export async function assetRoutes(app: FastifyInstance) {
     }
 
     const filePath = path.join(UPLOADS_DIR, asset.path);
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("Cache-Control", "private, max-age=31536000, immutable");
     reply.type(asset.mime_type);
     return reply.send(fs.createReadStream(filePath));
   });

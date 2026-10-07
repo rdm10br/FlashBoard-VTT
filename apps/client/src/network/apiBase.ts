@@ -8,13 +8,23 @@ function computeApiOrigin(): string {
   }
   return window.location.origin;
 }
+let currentAssetKey: string | null = null;
+
+export function setAssetKey(key: string | null) {
+  currentAssetKey = key;
+}
 
 export const API_ORIGIN = computeApiOrigin();
 
 export const PUBLIC_ORIGIN = import.meta.env.VITE_PUBLIC_URL ?? window.location.origin;
 
+// export function assetUrl(assetId: string): string {
+//   return `${API_ORIGIN}/api/assets/${assetId}`;
+// }
+
 export function assetUrl(assetId: string): string {
-  return `${API_ORIGIN}/api/assets/${assetId}`;
+  const query = currentAssetKey ? `?key=${encodeURIComponent(currentAssetKey)}` : "";
+  return `${API_ORIGIN}/api/assets/${assetId}${query}`;
 }
 
 export const ASSET_UPLOAD_URL = `${API_ORIGIN}/api/assets/upload`;

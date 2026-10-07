@@ -2,6 +2,7 @@ import type { Role } from "../db/index.js";
 import { createChatMessage, getChatMessagesForSession, getMembersForSession, getSession, updateSessionDiceLimits } from "../db/index.js";
 import type { ServerMessage, ChatMessage } from "@vtt/protocol";
 import type { WebSocket } from "ws";
+import { LIMITS } from "@vtt/protocol";
 
 export type ChatPayload = {
   session_id: string;
@@ -33,7 +34,7 @@ export function handleChatCommand(
   broadcastToGMs: (session_id: string, msg: ServerMessage) => void
 ) {
   const now = Math.floor(Date.now() / 1000);
-  const memberList = getMembersForSession(session_id);
+  // const memberList = getMembersForSession(session_id);
 
   function sendGlobalMessage(message: ServerMessage) {
     broadcastToSession(session_id, message);
@@ -141,7 +142,11 @@ export function handleChatCommand(
     const rollMode = isAdv ? " (vantagem)" : isDis ? " (desvantagem)" : "";
     const rollText = `${state.nickname} rolou ${rollDetails.dice}${rollMode}${modifier ? ` ${modifier >= 0 ? "+" : ""}${modifier}` : ""}${attribute ? ` ${attribute}` : ""}`;
     const resultDetails = chosen !== undefined ? `[${values.join(", ")}] (escolhido: ${chosen})` : values.join(", ");
-    const fullText = `${rollText} → ${resultDetails} = ${total}`;
+    // const fullText = `${rollText} → ${resultDetails} = ${total}`;
+    const detailedText = `${rollText} → ${resultDetails} = ${total}`;
+    const fullText = detailedText.length <= LIMITS.chatText
+      ? detailedText
+      : `${rollText} → (${values.length} dados) = ${total}`;
 
     const createdRoll = createChatMessage(session_id, state.nickname, fullText, now, "roll", undefined, rollDetails);
     sendGlobalMessage({ type: "CHAT_RECEIVE", payload: { id: createdRoll.id, sender: state.nickname, text: fullText, timestamp: now, message_type: "roll", roll_details: rollDetails, visible_to: "all" } });
@@ -149,6 +154,7 @@ export function handleChatCommand(
   }
 
   if (command === "whisper") {
+    const memberList = getMembersForSession(session_id);
     const target = pieces[1];
     const message = pieces.slice(2).join(" ");
     if (!target || !message) {

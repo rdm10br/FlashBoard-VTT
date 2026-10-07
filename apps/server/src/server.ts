@@ -14,6 +14,7 @@ import multipart from "@fastify/multipart";
 import { MAX_UPLOAD_BYTES } from "./storage/uploads.js";
 import { assetRoutes } from "./http/assetRoutes.js";
 import { backupRoutes } from "./http/backupRoutes.js";
+import { LIMITS } from "@vtt/protocol";
 
 const app = Fastify();
 
@@ -23,7 +24,9 @@ const app = Fastify();
 // "Failed to fetch". Em produção cliente e API usam a mesma origem.
 app.addHook("onRequest", (request, reply, done) => {
   const origin = request.headers.origin;
-  const isLocalVite = origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  const isDev = process.env.NODE_ENV !== "production";
+  // const isLocalVite = origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  const isLocalVite = isDev && origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
   if (!isLocalVite) {
     done();
@@ -82,12 +85,13 @@ app.get("/health", async () => ({ status: "ok" }));
 
 const start = async () => {
   const PORT = 3000;
-
-  await app.listen({ port: PORT, host: "0.0.0.0" });
+  const HOST = process.env.HOST ?? "0.0.0.0";
+  await app.listen({ port: PORT, host: HOST });
+  // await app.listen({ port: PORT, host: "0.0.0.0" });
   console.log(`HTTP server rodando na porta ${PORT}`);
 
-  const wss = new WebSocketServer({ server: app.server });
-
+  // const wss = new WebSocketServer({ server: app.server });
+  const wss = new WebSocketServer({ server: app.server, maxPayload: LIMITS.wsPayloadBytes });
   // ─── Heartbeat: detecta conexões zumbi (sem resposta ao ping) ───────────
   const HEARTBEAT_INTERVAL = 25_000;
 

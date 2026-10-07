@@ -94,7 +94,16 @@ if (namedTunnel.valid) {
 
 // --- Passo 4: sobe o server ---
 console.log("\n▶ Iniciando server...");
-const server = spawn("node", [SERVER_ENTRY], { cwd: rootDir, stdio: "inherit" });
+const server = spawn("node", [SERVER_ENTRY], {
+  cwd: rootDir,
+  stdio: "inherit",
+  env: {
+    ...process.env,
+    NODE_ENV: "production",
+    HOST: "127.0.0.1",
+    TRUST_PROXY_HEADERS: "true",
+  },
+});
 
 server.on("exit", (code) => {
   console.log(`Server encerrado (código ${code}).`);

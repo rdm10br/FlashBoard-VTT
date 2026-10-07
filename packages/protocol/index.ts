@@ -67,7 +67,7 @@ export type SessionJoinedPayload = {
   session_name: string;
   member: Member;
   invite_codes: InviteCodeSummary[];
-  // asset_key: string;
+  asset_key: string;
   scenes: Scene[];
   active_scene_id: string;
   default_token_asset_id: string | null;
@@ -157,3 +157,5 @@ export type ServerMessage =
   | { type: "CHAT_RECEIVE"; payload: ChatMessage };
 
 export type Message = ClientMessage | ServerMessage;
+
+export * from "./limits.js";
