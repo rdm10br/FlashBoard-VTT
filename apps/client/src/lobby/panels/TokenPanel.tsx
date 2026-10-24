@@ -84,6 +84,15 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
           </button>
           <div style={{ color: "#9ca3af", fontSize: "12px" }}>Clique para criar um token centralizado</div>
           </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              style={styles.copyBtn}
+              onClick={() => window.dispatchEvent(new CustomEvent("vtt-delete-selected-token"))}
+            >
+              Remover token selecionado
+            </button>
+            <span style={{ color: "#6b7280", fontSize: "12px" }}>ou tecla Delete</span>
+          </div>
           <input
             ref={fileInputRef}
             type="file"

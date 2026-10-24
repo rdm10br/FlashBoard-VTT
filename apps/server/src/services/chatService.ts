@@ -3,6 +3,7 @@ import { createChatMessage, getChatMessagesForSession, getMembersForSession, get
 import type { ServerMessage, ChatMessage } from "@vtt/protocol";
 import type { WebSocket } from "ws";
 import { LIMITS } from "@vtt/protocol";
+import { executeRoll, formatBreakdown, parseRoll, type RollMode } from "./dice";
 
 export type ChatPayload = {
   session_id: string;
@@ -34,7 +35,6 @@ export function handleChatCommand(
   broadcastToGMs: (session_id: string, msg: ServerMessage) => void
 ) {
   const now = Math.floor(Date.now() / 1000);
-  // const memberList = getMembersForSession(session_id);
 
   function sendGlobalMessage(message: ServerMessage) {
     broadcastToSession(session_id, message);
@@ -57,120 +57,82 @@ export function handleChatCommand(
 
   const pieces = rawText.slice(1).split(/\s+/);
   const command = pieces[0]?.toLowerCase();
+  // Tudo que vem depois do comando, preservando espaços internos.
+  const args = rawText.slice(1 + pieces[0].length).trim();
 
   if (command === "roll" || command === "r" || command === "adv" || command === "dis") {
-    const isAdv = command === "adv";
-    const isDis = command === "dis";
-    const target = pieces[1];
-    if (!target) {
-      send({ type: "USER_ERROR", payload: { message: "Uso: /roll 1d20 [+mod] [atributo]" } });
+    const mode: RollMode = command === "adv" ? "adv" : command === "dis" ? "dis" : "normal";
+    if (!args) {
+      send({ type: "USER_ERROR", payload: { message: "Uso: /roll 1d20+5 [rótulo] — também /adv e /dis" } });
       return;
     }
-
-    const parsed = /^([0-9]*)d([0-9]+)$/.exec(target.toLowerCase());
-    if (!parsed) {
-      send({ type: "USER_ERROR", payload: { message: "Formato de dado inválido." } });
-      return;
-    }
-
-    const count = parsed[1] ? parseInt(parsed[1], 10) : 1;
-    const sides = parseInt(parsed[2], 10);
 
     const session = getSession(session_id);
-    const maxDiceCount = session?.max_dice_count ?? 100;
-    const maxDiceSides = session?.max_dice_sides ?? 100;
-
-    if (!Number.isInteger(count) || count < 1 || !Number.isInteger(sides) || sides < 1) {
-      send({ type: "USER_ERROR", payload: { message: "Apenas números inteiros e positivos são aceitos para quantidade e faces dos dados." } });
+    const parsed = parseRoll(
+      args,
+      { maxDice: session?.max_dice_count ?? 100, maxSides: session?.max_dice_sides ?? 100 },
+      mode,
+    );
+    if (!parsed.ok) {
+      send({ type: "USER_ERROR", payload: { message: parsed.error } });
       return;
     }
 
-    if (count > maxDiceCount) {
-      send({ type: "USER_ERROR", payload: { message: `Limite excedido: a sessão permite no máximo ${maxDiceCount} dados por rolagem.` } });
-      return;
-    }
-
-    if (sides > maxDiceSides) {
-      send({ type: "USER_ERROR", payload: { message: `Limite excedido: a sessão permite dados com no máximo ${maxDiceSides} faces.` } });
-      return;
-    }
-    let modifier = 0;
-    let attribute: string | undefined;
-    for (let i = 2; i < pieces.length; i += 1) {
-      const part = pieces[i];
-      if (/^[+-]?\d+$/.test(part)) {
-        modifier += parseInt(part, 10);
-      } else {
-        attribute = part.toUpperCase();
-      }
-    }
-
-    const values: number[] = [];
-    if ((isAdv || isDis) && count === 1 && sides === 20) {
-      const first = Math.floor(Math.random() * 20) + 1;
-      const second = Math.floor(Math.random() * 20) + 1;
-      values.push(first, second);
-    } else {
-      for (let i = 0; i < count; i += 1) {
-        values.push(Math.floor(Math.random() * sides) + 1);
-      }
-    }
-
-    let baseValue = 0;
-    let chosen: number | undefined;
-
-    if (isAdv && values.length > 1) {
-      chosen = Math.max(...values);
-      baseValue = chosen;
-    } else if (isDis && values.length > 1) {
-      chosen = Math.min(...values);
-      baseValue = chosen;
-    } else {
-      baseValue = values.reduce((sum, v) => sum + v, 0);
-    }
-
-    const total = baseValue + modifier;
+    const { roll } = parsed;
+    const outcome = executeRoll(roll);
     const rollDetails = {
-      dice: `${count}d${sides}`,
-      modifier,
-      attribute,
-      advantage: isAdv,
-      disadvantage: isDis,
-      results: values,
-      total,
+      dice: roll.expression,
+      modifier: outcome.modifier,
+      attribute: roll.label || undefined,
+      advantage: mode === "adv",
+      disadvantage: mode === "dis",
+      results: outcome.results,
+      total: outcome.total,
     };
-    const rollMode = isAdv ? " (vantagem)" : isDis ? " (desvantagem)" : "";
-    const rollText = `${state.nickname} rolou ${rollDetails.dice}${rollMode}${modifier ? ` ${modifier >= 0 ? "+" : ""}${modifier}` : ""}${attribute ? ` ${attribute}` : ""}`;
-    const resultDetails = chosen !== undefined ? `[${values.join(", ")}] (escolhido: ${chosen})` : values.join(", ");
-    // const fullText = `${rollText} → ${resultDetails} = ${total}`;
-    const detailedText = `${rollText} → ${resultDetails} = ${total}`;
+
+    const rollMode = mode === "adv" ? " (vantagem)" : mode === "dis" ? " (desvantagem)" : "";
+    const rollText = `${state.nickname} rolou ${roll.expression}${rollMode}${roll.label ? ` ${roll.label}` : ""}`;
+    const detailedText = `${rollText} → ${formatBreakdown(outcome)} = ${outcome.total}`;
     const fullText = detailedText.length <= LIMITS.chatText
       ? detailedText
-      : `${rollText} → (${values.length} dados) = ${total}`;
+      : `${rollText} → (${outcome.results.length} dados) = ${outcome.total}`;
 
     const createdRoll = createChatMessage(session_id, state.nickname, fullText, now, "roll", undefined, rollDetails);
-    sendGlobalMessage({ type: "CHAT_RECEIVE", payload: { id: createdRoll.id, sender: state.nickname, text: fullText, timestamp: now, message_type: "roll", roll_details: rollDetails, visible_to: "all" } });
+    sendGlobalMessage({
+      type: "CHAT_RECEIVE",
+      payload: { id: createdRoll.id, sender: state.nickname, text: fullText, timestamp: now, message_type: "roll", roll_details: rollDetails, visible_to: "all" },
+    });
     return;
   }
 
   if (command === "whisper") {
-    const memberList = getMembersForSession(session_id);
-    const target = pieces[1];
-    const message = pieces.slice(2).join(" ");
-    if (!target || !message) {
+    if (!args) {
       send({ type: "USER_ERROR", payload: { message: "Uso: /whisper <nome> <mensagem>" } });
       return;
     }
 
-    const targetNickname = memberList.find((m) => m.nickname.toLowerCase() === target.toLowerCase())?.nickname;
-    if (!targetNickname) {
-      send({ type: "USER_ERROR", payload: { message: "Jogador não encontrado na sessão." } });
+    // O apelido pode ter espaços ("Jogador antigo"), então não dá para pegar só a
+    // primeira palavra. Testa os membros do maior apelido para o menor, para que
+    // "Ana Maria" ganhe de "Ana".
+    const member = [...getMembersForSession(session_id)]
+      .sort((a, b) => b.nickname.length - a.nickname.length)
+      .find((m) =>
+        args.slice(0, m.nickname.length).toLowerCase() === m.nickname.toLowerCase() &&
+        /\s/.test(args.charAt(m.nickname.length)),
+      );
+    if (!member) {
+      send({ type: "USER_ERROR", payload: { message: "Jogador não encontrado na sessão. Uso: /whisper <nome> <mensagem>" } });
       return;
     }
 
+    const targetNickname = member.nickname;
+    const message = args.slice(targetNickname.length).trim();
     const text = `(sussurro para ${targetNickname}) ${message}`;
     const createdWhisper = createChatMessage(session_id, state.nickname, text, now, "whisper", targetNickname, { raw: message });
-    sendWhisperMessage({ type: "CHAT_RECEIVE", payload: { id: createdWhisper.id, sender: state.nickname, text, timestamp: now, message_type: "whisper", target: targetNickname, visible_to: "sender-target" } }, targetNickname);
+    sendWhisperMessage({
+      type: "CHAT_RECEIVE",
+      payload: { id: createdWhisper.id, sender: state.nickname, text, timestamp: now, message_type: "whisper", target: targetNickname, visible_to: "sender-target" },
+    }, targetNickname);
     return;
   }
 

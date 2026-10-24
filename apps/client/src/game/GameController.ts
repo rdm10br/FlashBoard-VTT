@@ -64,6 +64,9 @@ export class GameController {
       const editing = (event as CustomEvent<{ editing: boolean }>).detail?.editing;
       this.maps.setEditing(editing === true && this.canCreateTokens);
     });
+    
+    window.addEventListener("vtt-delete-selected-token", () => this.deleteSelectedToken());
+    window.addEventListener("keydown", (event) => this.onKeyDown(event));
 
     this.socket.setGameHandler((data) => this.handleServerMessage(data));
   }
@@ -80,6 +83,24 @@ export class GameController {
   setCanCreateTokens(value: boolean) {
     this.canCreateTokens = value;
     if (!value) this.maps.setEditing(false);
+  }
+
+  deleteSelectedToken() {
+    if (!this.canCreateTokens) return;
+    const token = this.selection.selectedToken;
+    const id = token ? this.tokens.getId(token) : undefined;
+    if (!id) return;
+    this.socket.send({ type: "TOKEN_DELETE", payload: { id } });
+  }
+
+    private onKeyDown(event: KeyboardEvent) {
+    if (event.key !== "Delete" && event.key !== "Backspace") return;
+    // Não apagar token enquanto a pessoa digita no chat ou em qualquer campo.
+    const target = event.target as HTMLElement | null;
+    if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+    if (!this.selection.selectedToken) return;
+    event.preventDefault();
+    this.deleteSelectedToken();
   }
 
   private onStagePointerMove(event: PIXI.FederatedPointerEvent) {
@@ -169,6 +190,19 @@ export class GameController {
 
     if (data.type === "TOKEN_ASSET_CHANGED") {
       void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
+    }
+
+    if (data.type === "TOKEN_DELETED") {
+      const token = this.tokens.get(data.payload.id);
+      if (token) {
+        this.highlights.delete(token);
+        if (this.selection.selectedToken === token) {
+          this.selection.selectedToken = null;
+          this.selection.isDragging = false;
+        }
+      }
+      this.tokens.remove(data.payload.id);
+      return;
     }
   }
 }

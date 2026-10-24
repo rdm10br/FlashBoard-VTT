@@ -215,6 +215,11 @@ test("account authentication, legacy association, and session revocation", async
     assert.deepEqual(getToken(tokenB.id), tokenB);
     tokenHandlers.TOKEN_MOVE?.({ id: tokenA.id, x: 50, y: 60 }, { state, ws });
     assert.deepEqual({ x: getToken(tokenA.id)?.x, y: getToken(tokenA.id)?.y }, { x: 50, y: 60 });
+    
+    tokenHandlers.TOKEN_DELETE?.({ id: tokenB.id }, { state, ws });
+    assert.deepEqual(getToken(tokenB.id), tokenB); // token de outra sessão não some
+    tokenHandlers.TOKEN_DELETE?.({ id: tokenA.id }, { state, ws });
+    assert.equal(getToken(tokenA.id), undefined);
 
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneB.id }, { state, ws });
     assert.equal(activeScenesPerSession.has(sessionA.id), false);

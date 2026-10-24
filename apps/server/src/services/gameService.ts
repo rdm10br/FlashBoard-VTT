@@ -1,6 +1,14 @@
 import type { Role } from "../db/index.js";
 import type { SceneMap } from "@vtt/protocol";
-import { createScene, getScene, setSceneVisibility, createToken, getTokensForScene, moveToken, setTokenAsset } from "../db/index.js";
+import { createScene,
+  getScene,
+  setSceneVisibility,
+  createToken,
+  getTokensForScene,
+  moveToken,
+  setTokenAsset,
+  deleteToken
+} from "../db/index.js";
 
 export function createSceneForSession(sessionId: string, name: string) {
   const scene = createScene(sessionId, name);
@@ -40,6 +48,10 @@ export function moveTokenOnScene(id: string, x: number, y: number) {
 
 export function setTokenAssetOnToken(id: string, assetId: string) {
   setTokenAsset(id, assetId);
+}
+
+export function deleteTokenOnScene(id: string) {
+  deleteToken(id);
 }
 
 export function setSceneVisibilityOnScene(sceneId: string, visible: boolean) {

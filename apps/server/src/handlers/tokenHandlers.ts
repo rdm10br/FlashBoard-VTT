@@ -1,7 +1,7 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import { getAsset, getScene, getSession, getToken } from "../db/index.js";
-import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken } from "../services/gameService.js";
+import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken, deleteTokenOnScene } from "../services/gameService.js";
 import { broadcastToScene, send } from "../ws/broadcast.js";
 import { LIMITS } from "@vtt/protocol";
 
@@ -60,6 +60,7 @@ export const tokenHandlers: Partial<Record<ClientMessage["type"], MessageHandler
   TOKEN_CREATE_REQUEST: handleTokenCreateRequest,
   TOKEN_MOVE: handleTokenMove,
   TOKEN_SET_ASSET: handleTokenSetAsset,
+  TOKEN_DELETE: handleTokenDelete,
 };
 
 function handleTokenSetAsset(payload: { id: string; asset_id: string }, ctx: HandlerContext) {
@@ -76,4 +77,25 @@ function handleTokenSetAsset(payload: { id: string; asset_id: string }, ctx: Han
 
   setTokenAssetOnToken(token.id, payload.asset_id);
   broadcastToScene(token.scene_id, { type: "TOKEN_ASSET_CHANGED", payload: { id: token.id, asset_id: payload.asset_id } });
+}
+
+function handleTokenDelete(payload: { id: string }, ctx: HandlerContext) {
+  const { state, ws } = ctx;
+  if (state.role === "viewer") return;
+  if (!payload || typeof payload.id !== "string") return;
+
+  const token = getToken(payload.id);
+  const scene = token ? getScene(token.scene_id) : undefined;
+  if (
+    !token ||
+    !scene ||
+    scene.session_id !== state.session_id ||
+    token.scene_id !== state.scene_id
+  ) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Token inválido para esta sessão ou cena." } });
+    return;
+  }
+
+  deleteTokenOnScene(token.id);
+  broadcastToScene(token.scene_id, { type: "TOKEN_DELETED", payload: { id: token.id } });
 }

@@ -79,12 +79,21 @@ export class TokenManager {
       console.error("Não foi possível carregar a imagem do token.", error);
     }
   }
+  
+  remove(id: string) {
+    const token = this.tokens.get(id);
+    if (!token) return;
+    this.layer.removeChild(token);
+    token.destroy({ children: true });
+    this.tokens.delete(id);
+    this.ids.delete(token);
+    this.visuals.delete(id);
+  }
 
   clear() {
-    // Remove todos os tokens do layer e limpa os maps
     this.tokens.forEach((graphic) => {
       this.layer.removeChild(graphic);
-      graphic.destroy();
+      graphic.destroy({ children: true });
     });
     this.tokens.clear();
     this.ids.clear();

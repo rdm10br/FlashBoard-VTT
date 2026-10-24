@@ -127,11 +127,11 @@ export type ClientMessage =
   | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
+  | { type: "TOKEN_DELETE"; payload: { id: string } }
   | { type: "BACKUP_EXPORT_REQUEST"; payload: { session_id: string } }
   | { type: "BACKUP_IMPORT_GRANT_REQUEST"; payload: {} }
   | { type: "ASSET_UPLOAD_GRANT_REQUEST"; payload: { session_id: string; asset_kind?: "token_image" | "map_image" } }
   | { type: "CHAT_SEND"; payload: { text: string } };
-
 // --- Mensagens Server → Client ---
 
 export type ServerMessage =
@@ -153,6 +153,7 @@ export type ServerMessage =
   | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string } }
+  | { type: "TOKEN_DELETED"; payload: { id: string } }
   | { type: "BACKUP_GRANT_ISSUED"; payload: { token: string; expires_at: number; kind: "export" | "import" | "asset_upload"; asset_kind?: "token_image" | "map_image" } }
   | { type: "CHAT_RECEIVE"; payload: ChatMessage };
 
