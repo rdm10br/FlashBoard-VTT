@@ -8,7 +8,7 @@
     "build:server": "npm --workspace apps/server run build",
     "build:client": "npm --workspace apps/client run build",
     "dev:server": "npm --workspace apps/server run build && npm --workspace apps/server run start",
-    "dev:client": "npm --workspace apps/client run dev",
+    "dev:client": "npm --workspace apps/client run build && npm --workspace apps/client run dev",
     "test": "tsx --test apps/server/src/all.test.ts",
     "host": "node scripts/host.mjs"
   },
