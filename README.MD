@@ -11,20 +11,27 @@ Aplicação de mesa virtual com cliente React/Pixi, servidor Fastify/WebSocket e
 
 Na raiz do repositório:
 
-```powershell
+```bash
 npm install
-npm start
+npm run dev:server
 ```
 
 O cliente Vite e o servidor são iniciados em paralelo. O primeiro cadastro cria uma conta com e-mail, apelido e senha; o login aceita e-mail ou apelido. Senhas devem ter pelo menos 12 caracteres.
 
 ## Primeiro administrador
 
-Antes de iniciar o servidor pela primeira vez, configure um segredo aleatório de pelo menos 32 caracteres no ambiente:
+Antes de iniciar o servidor pela primeira vez, configure um segredo aleatório de pelo menos 32 caracteres no ambiente dependendo do seu sistema operacional:
 
+**No Windows (PowerShell):**
 ```powershell
-$env:ADMIN_BOOTSTRAP_TOKEN = node -p "require('node:crypto').randomBytes(32).toString('base64url')"
-npm start
+\$env:ADMIN_BOOTSTRAP_TOKEN = (node -p "require('node:crypto').randomBytes(32).toString('base64url')")
+npm run dev:server
+```
+
+**No Linux / macOS (Bash/Zsh):**
+```bash
+export ADMIN_BOOTSTRAP_TOKEN=\$(node -p "require('node:crypto').randomBytes(32).toString('base64url')")
+npm run dev:server
 ```
 
 O formulário de cadastro oferece o campo de bootstrap enquanto não existir um administrador. Informe o segredo somente na conta que deve ser a primeira administradora. O servidor não permite usá-lo novamente depois que um administrador for criado. Remova a variável do ambiente após concluir o bootstrap.
@@ -52,9 +59,19 @@ O mestre pode abrir a aba **Mapa** durante uma cena e enviar um arquivo PNG, JPE
 
 ## Build e testes
 
+Para rodar os comandos de compilação de forma compatível com múltiplos terminais:
+
+**No Windows (PowerShell):**
 ```powershell
 npm --workspace apps/client run build
 npm --workspace apps/server run build
+npm test
+```
+
+**No Linux / macOS (Bash/Zsh):**
+```bash
+npm --workspace=apps/client run build
+npm --workspace=apps/server run build
 npm test
 ```
 

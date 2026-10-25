@@ -6,6 +6,7 @@
   "scripts": {
     "start": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "build:server": "npm --workspace apps/server run build",
+    "build:client": "npm --workspace apps/client run build",
     "dev:server": "npm --workspace apps/server run build && npm --workspace apps/server run start",
     "dev:client": "npm --workspace apps/client run dev",
     "test": "tsx --test apps/server/src/all.test.ts",

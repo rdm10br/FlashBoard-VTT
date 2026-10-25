@@ -3,7 +3,7 @@ import { createChatMessage, getChatMessagesForSession, getMembersForSession, get
 import type { ServerMessage, ChatMessage } from "@vtt/protocol";
 import type { WebSocket } from "ws";
 import { LIMITS } from "@vtt/protocol";
-import { executeRoll, formatBreakdown, parseRoll, type RollMode } from "./dice";
+import { executeRoll, formatBreakdown, parseRoll, type RollMode } from "./dice.js";
 
 export type ChatPayload = {
   session_id: string;

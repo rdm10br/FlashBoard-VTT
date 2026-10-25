@@ -3,7 +3,7 @@ import type { HandlerContext, MessageHandler } from "./types.js";
 import { getAsset, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
 import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
-import { activeScenesPerSession } from "../state/activeScenes";
+import { activeScenesPerSession } from "../state/activeScenes.js";
 import {
   buildSessionJoinedPayload,
   createSessionForUser,

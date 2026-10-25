@@ -2,6 +2,7 @@
   "name": "server",
   "version": "0.0.0",
   "main": "dist/server.js",
+  "type": "module",
   "scripts": {
     "test": "tsx --test src/services/authService.test.ts",
     "build": "tsc && tsc-alias",

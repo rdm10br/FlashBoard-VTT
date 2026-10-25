@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { executeRoll, formatBreakdown, parseRoll, type RollMode, type Rng } from "./dice";
+import { executeRoll, formatBreakdown, parseRoll, type RollMode, type Rng } from "./dice.js";
 
 const LIMITS = { maxDice: 100, maxSides: 100 };
 

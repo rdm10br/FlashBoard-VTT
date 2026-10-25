@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
 import type { ClientMessage } from "@vtt/protocol";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
@@ -15,6 +16,10 @@ import { MAX_UPLOAD_BYTES } from "./storage/uploads.js";
 import { assetRoutes } from "./http/assetRoutes.js";
 import { backupRoutes } from "./http/backupRoutes.js";
 import { LIMITS } from "@vtt/protocol";
+
+// Cria o equivalente ao __dirname de forma segura para ESM e multiplataforma
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = Fastify();
 
