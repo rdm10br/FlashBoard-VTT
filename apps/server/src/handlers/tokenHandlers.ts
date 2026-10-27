@@ -29,11 +29,18 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
     send(ws, { type: "SESSION_ERROR", payload: { message: "Imagem de token inválida para esta sessão." } });
     return;
   }
-  const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId);
+  const ownerUserId = state.user_id ?? undefined;
+  const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId, ownerUserId);
   broadcastToScene(payload.scene_id, {
     type: "TOKEN_CREATE",
     payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id },
   });
+}
+
+/** GM pode agir em qualquer token; player só no próprio. */
+function canActOnToken(token: { owner_user_id: string | null }, state: HandlerContext["state"]): boolean {
+  if (state.role === "gm") return true;
+  return token.owner_user_id !== null && token.owner_user_id === state.user_id;
 }
 
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
@@ -50,6 +57,10 @@ function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: Han
     token.scene_id !== state.scene_id
   ) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Token inválido para esta sessão ou cena." } });
+    return;
+  }
+  if (!canActOnToken(token, state)) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Você não tem permissão para mover este token." } });
     return;
   }
   moveTokenOnScene(id, x, y);
@@ -72,6 +83,10 @@ function handleTokenSetAsset(payload: { id: string; asset_id: string }, ctx: Han
   const scene = token ? getScene(token.scene_id) : undefined;
   if (!token || !scene || scene.session_id !== state.session_id || token.scene_id !== state.scene_id || !isTokenImageFromCurrentSession(payload.asset_id, state.session_id!)) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Token ou imagem inválidos para esta sessão." } });
+    return;
+  }
+  if (!canActOnToken(token, state)) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Você não tem permissão para alterar este token." } });
     return;
   }
 

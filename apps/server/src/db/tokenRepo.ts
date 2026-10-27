@@ -1,15 +1,15 @@
 import db from "./connection.js";
 import { generateId } from "./idGenerators.js";
 
-export function createToken(sceneId: string, x: number, y: number, assetId?: string) {
+export function createToken(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
   const id = generateId("token");
-  db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y) VALUES (?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y);
+  db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y, ownerUserId ?? null);
   return getToken(id)!;
 }
 
 export function getToken(id: string) {
   return db.prepare("SELECT * FROM tokens WHERE id = ?").get(id) as
-  | { id: string; scene_id: string; asset_id: string | null; x: number; y: number }
+  | { id: string; scene_id: string; asset_id: string | null; x: number; y: number; owner_user_id: string | null }
     | undefined;
 }
 

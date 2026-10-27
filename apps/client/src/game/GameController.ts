@@ -47,6 +47,11 @@ export class GameController {
     );
     this.grid.draw(window.innerWidth, window.innerHeight);
 
+    window.addEventListener("resize", () => {
+      this.pixiApp.resize();
+      this.grid.draw(window.innerWidth, window.innerHeight);
+    });
+
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
     window.addEventListener("vtt-create-token", (event) => {
       const assetId = (event as CustomEvent<{ assetId?: string }>).detail?.assetId;

@@ -59,6 +59,9 @@ export function runMigrations(db: Database.Database) {
   if (!tokenColumnNames.includes("asset_id")) {
     db.exec("ALTER TABLE tokens ADD COLUMN asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;");
   }
+  if (!tokenColumnNames.includes("owner_user_id")) {
+    db.exec("ALTER TABLE tokens ADD COLUMN owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;");
+  }
 
   const sceneColumns = db.prepare("PRAGMA table_info(scenes)").all();
   const sceneColumnNames = sceneColumns.map((col: any) => col.name);

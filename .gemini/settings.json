@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "trail": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "trail",
+        "mcp"
+      ]
+    }
+  }
+}

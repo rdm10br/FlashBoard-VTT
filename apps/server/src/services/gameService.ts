@@ -38,8 +38,8 @@ export function canEnterScene(sceneId: string, session_id: string, role: Role) {
   return scene;
 }
 
-export function createTokenOnScene(sceneId: string, x: number, y: number, assetId?: string) {
-  return createToken(sceneId, x, y, assetId);
+export function createTokenOnScene(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
+  return createToken(sceneId, x, y, assetId, ownerUserId);
 }
 
 export function moveTokenOnScene(id: string, x: number, y: number) {

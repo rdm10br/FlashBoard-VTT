@@ -1,0 +1,14 @@
+O canvas Pixi nao tem resize handler porque o codigo usa window.innerWidth/innerHeight fixos
+na inicializacao (engine/app.ts e grid.ts), sem listener de window.resize — caso contrario o
+grid e os tokens ficam cortados se a janela mudar de tamanho.
+
+Tokens usam coordenadas absolutas de pixels de tela, porque ainda nao existe um worldContainer
+ou camera layer — isso causa desalinhamento entre jogadores com resolucoes diferentes.
+
+Qualquer player pode mover ou deletar qualquer token porque tokenHandlers.ts nao valida
+owner_user_id no token (campo nem existe na tabela tokens do schema) — sem essa checagem
+qualquer player pode interferir nos tokens alheios.
+
+O logout nao limpa o GameController porque handleLogout em App.tsx comenta setAssetKey(null)
+e nao chama clearTokens nem remove o mapa — caso contrario a cena anterior fica visivel atras
+da tela de login.
