@@ -1,9 +1,14 @@
 import type Database from "better-sqlite3";
 import { randomUUID } from "crypto";
 
-// Migração incremental: garante que chat_messages tenha as colunas
-// message_type/target/metadata mesmo em bancos criados antes delas existirem.
-export function runMigrations(db: Database.Database) {
+type Migration = {
+  version: number;
+  name: string;
+  up: (db: Database.Database) => void;
+};
+
+// Compatibilidade inicial com bancos criados antes do schema atual.
+function migrateLegacySchema(db: Database.Database) {
   const userColumns = db.prepare("PRAGMA table_info(users)").all();
   const userColumnNames = userColumns.map((col: any) => col.name);
 
@@ -106,7 +111,6 @@ export function runMigrations(db: Database.Database) {
 
   if (!needsMigration) return;
 
-  db.exec("BEGIN TRANSACTION;");
   db.exec(`
     CREATE TABLE IF NOT EXISTS chat_messages_new (
       id          TEXT PRIMARY KEY,
@@ -127,5 +131,34 @@ export function runMigrations(db: Database.Database) {
   `);
   db.exec(`DROP TABLE chat_messages;`);
   db.exec(`ALTER TABLE chat_messages_new RENAME TO chat_messages;`);
-  db.exec("COMMIT;");
+}
+
+const migrations: Migration[] = [
+  { version: 1, name: "legacy-schema-compatibility", up: migrateLegacySchema },
+];
+
+export function runMigrations(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version    INTEGER PRIMARY KEY,
+      name       TEXT NOT NULL,
+      applied_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+  `);
+
+  const hasMigration = db.prepare(
+    "SELECT 1 FROM schema_migrations WHERE version = ?",
+  );
+  const recordMigration = db.prepare(
+    "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+  );
+
+  for (const migration of migrations) {
+    if (hasMigration.get(migration.version)) continue;
+
+    db.transaction(() => {
+      migration.up(db);
+      recordMigration.run(migration.version, migration.name);
+    }).immediate();
+  }
 }

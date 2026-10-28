@@ -73,6 +73,7 @@ export function createSchema(db: Database.Database) {
       id          TEXT PRIMARY KEY,
       scene_id    TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
       asset_id    TEXT REFERENCES assets(id) ON DELETE SET NULL,
+      owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       x           REAL NOT NULL,
       y           REAL NOT NULL,
       updated_at  INTEGER NOT NULL DEFAULT (unixepoch())

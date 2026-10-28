@@ -45,6 +45,7 @@ test("legacy user rows survive the credential migration without gaining a login"
 
   createSchema(legacyDb);
   runMigrations(legacyDb);
+  runMigrations(legacyDb);
   const user = legacyDb.prepare(
     "SELECT id, nickname, email, password_hash, is_admin FROM users WHERE id = ?",
   ).get("legacy-1") as {
@@ -67,7 +68,34 @@ test("legacy user rows survive the credential migration without gaining a login"
     sceneColumns.filter((column) => column.name.startsWith("map_")).map((column) => column.name),
     ["map_asset_id", "map_x", "map_y", "map_scale"],
   );
+  const appliedMigrations = legacyDb.prepare(
+    "SELECT version, name FROM schema_migrations ORDER BY version",
+  ).all();
+  assert.deepEqual(appliedMigrations, [{ version: 1, name: "legacy-schema-compatibility" }]);
   legacyDb.close();
+});
+
+test("schema migrations roll back all changes when a migration fails", () => {
+  const failingDb = new Database(":memory:");
+  failingDb.exec(`
+    CREATE TABLE users (
+      id TEXT PRIMARY KEY,
+      nickname TEXT NOT NULL,
+      email TEXT
+    );
+    INSERT INTO users (id, nickname, email) VALUES
+      ('user-1', 'Jogador 1', 'duplicado@example.com'),
+      ('user-2', 'Jogador 2', 'duplicado@example.com');
+  `);
+
+  assert.throws(() => runMigrations(failingDb), /UNIQUE constraint failed/);
+  const userColumns = failingDb.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  assert.equal(userColumns.some((column) => column.name === "password_hash"), false);
+  assert.equal(
+    (failingDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get() as { count: number }).count,
+    0,
+  );
+  failingDb.close();
 });
 
 test("account authentication, legacy association, and session revocation", async () => {
