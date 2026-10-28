@@ -7,4 +7,6 @@ export const LIMITS = {
   name: 100,       // sessão e cena
   nickname: 32,
   coordinate: 1_000_000,
+  sceneSize: { min: 200, max: 20_000 },
+  gridSize: { min: 10, max: 500 },
 } as const;

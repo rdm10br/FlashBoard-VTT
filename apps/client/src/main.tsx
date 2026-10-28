@@ -10,7 +10,11 @@ import type { Role } from "@vtt/protocol";
 // explicitamente via variável de ambiente. Em produção, client e server são
 // servidos pela mesma origem (Fastify), então usamos o host atual dinamicamente.
 const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-const wsUrl = import.meta.env.VITE_WS_URL ?? `${wsProtocol}//${window.location.host}`;
+// const wsUrl = import.meta.env.VITE_WS_URL ?? `${wsProtocol}//${window.location.host}`;
+const wsUrl = import.meta.env.VITE_WS_URL
+  ?? (import.meta.env.DEV
+    ? `${wsProtocol}//${window.location.hostname}:3000`
+    : `${wsProtocol}//${window.location.host}`);
 const socket = new SocketManager(wsUrl);
 
 // --- Jogo (Pixi) ---

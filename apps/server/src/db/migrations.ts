@@ -81,6 +81,20 @@ export function runMigrations(db: Database.Database) {
     db.exec("ALTER TABLE sessions ADD COLUMN asset_key TEXT;");
   }
 
+  const sceneConfigColumns: [string, string][] = [
+    ["width", "REAL NOT NULL DEFAULT 2000"],
+    ["height", "REAL NOT NULL DEFAULT 1500"],
+    ["grid_type", "TEXT NOT NULL DEFAULT 'square'"],
+    ["grid_size", "REAL NOT NULL DEFAULT 50"],
+    ["grid_color", "TEXT NOT NULL DEFAULT '#ffffff'"],
+    ["grid_opacity", "REAL NOT NULL DEFAULT 0.5"],
+  ];
+  for (const [name, def] of sceneConfigColumns) {
+    if (!sceneColumnNames.includes(name)) {
+      db.exec(`ALTER TABLE scenes ADD COLUMN ${name} ${def};`);
+    }
+  }
+
   const withoutKey = db.prepare("SELECT id FROM sessions WHERE asset_key IS NULL").all() as { id: string }[];
   const fillKey = db.prepare("UPDATE sessions SET asset_key = ? WHERE id = ?");
   for (const row of withoutKey) fillKey.run(randomUUID(), row.id);

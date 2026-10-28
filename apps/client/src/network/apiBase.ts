@@ -8,6 +8,7 @@ function computeApiOrigin(): string {
   }
   return window.location.origin;
 }
+
 let currentAssetKey: string | null = null;
 
 export function setAssetKey(key: string | null) {

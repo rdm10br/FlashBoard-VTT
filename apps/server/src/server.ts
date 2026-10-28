@@ -1,3 +1,5 @@
+import "./env.js";
+import { closeDatabase } from "./db/connection.js";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import path from "path";
@@ -30,6 +32,7 @@ const app = Fastify();
 app.addHook("onRequest", (request, reply, done) => {
   const origin = request.headers.origin;
   const isDev = process.env.NODE_ENV !== "production";
+  const PORT = Number(process.env.PORT ?? 3000);
   // const isLocalVite = origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
   const isLocalVite = isDev && origin !== undefined && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
 
@@ -89,7 +92,8 @@ if (clientDist) {
 app.get("/health", async () => ({ status: "ok" }));
 
 const start = async () => {
-  const PORT = 3000;
+  // const PORT = 3000;
+  const PORT = Number(process.env.PORT ?? 3000);
   const HOST = process.env.HOST ?? "0.0.0.0";
   await app.listen({ port: PORT, host: HOST });
   // await app.listen({ port: PORT, host: "0.0.0.0" });
@@ -119,6 +123,16 @@ const start = async () => {
       client.ping();
     });
   }, HEARTBEAT_INTERVAL);
+
+  async function shutdown() {
+    clearInterval(heartbeat);
+    wss.close();
+    await app.close();
+    closeDatabase();
+    process.exit(0);
+  }
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 
   wss.on("close", () => clearInterval(heartbeat));
 

@@ -7,7 +7,7 @@
     "test": "tsx --test src/services/authService.test.ts",
     "build": "tsc && tsc-alias",
     "start": "node dist/apps/server/src/server.js",
-    "dev": "tsc --watch & tsc-alias --watch"
+    "dev": "concurrently \"tsc --watch\" \"tsc-alias --watch\""
   },
   "keywords": [],
   "author": "",

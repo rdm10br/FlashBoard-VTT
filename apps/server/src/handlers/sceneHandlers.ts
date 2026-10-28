@@ -1,4 +1,4 @@
-import type { ClientMessage } from "@vtt/protocol";
+import type { ClientMessage, SceneConfig } from "@vtt/protocol";
 import { LIMITS } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import {
@@ -7,7 +7,7 @@ import {
   getSceneState,
   setSceneVisibilityOnScene,
 } from "../services/gameService.js";
-import { getAsset, getScene, setSceneMap } from "../db/index.js";
+import { getAsset, getScene, setSceneMap, setSceneConfig } from "../db/index.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { activeScenesPerSession } from "../state/activeScenes.js";
@@ -22,6 +22,9 @@ import { activeScenesPerSession } from "../state/activeScenes.js";
 //     payload: { id: scene.id, name: scene.name, is_visible: true },
 //   });
 // }
+
+const GRID_TYPES = ["square", "hex_pointy", "hex_flat", "none"];
+
 function handleSceneCreate(payload: { name: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role !== "gm") return;
@@ -148,10 +151,53 @@ function handleSceneMapSet(
   });
 }
 
+function parseSceneConfig(p: Record<string, unknown>): SceneConfig | null {
+  const { width, height, grid_size, grid_opacity, grid_type, grid_color } = p;
+  const inRange = (n: unknown, min: number, max: number): n is number =>
+    typeof n === "number" && Number.isFinite(n) && n >= min && n <= max;
+
+  if (!inRange(width, LIMITS.sceneSize.min, LIMITS.sceneSize.max)) return null;
+  if (!inRange(height, LIMITS.sceneSize.min, LIMITS.sceneSize.max)) return null;
+  if (!inRange(grid_size, LIMITS.gridSize.min, LIMITS.gridSize.max)) return null;
+  if (!inRange(grid_opacity, 0, 1)) return null;
+  if (typeof grid_type !== "string" || !GRID_TYPES.includes(grid_type)) return null;
+  if (typeof grid_color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(grid_color)) return null;
+
+  return { width, height, grid_size, grid_opacity, grid_type: grid_type as SceneConfig["grid_type"], grid_color };
+}
+
+function handleSceneConfigSet(
+  payload: Extract<ClientMessage, { type: "SCENE_CONFIG_SET" }>["payload"],
+  ctx: HandlerContext,
+) {
+  const { state, ws } = ctx;
+  if (state.role !== "gm") {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode configurar a cena." } });
+    return;
+  }
+  if (!payload || typeof payload.scene_id !== "string" || payload.scene_id !== state.scene_id) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Selecione a cena antes de configurá-la." } });
+    return;
+  }
+  const scene = getScene(payload.scene_id);
+  if (!scene || scene.session_id !== state.session_id) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Cena inválida para esta sessão." } });
+    return;
+  }
+  const config = parseSceneConfig(payload as unknown as Record<string, unknown>);
+  if (!config) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Configuração de cena inválida." } });
+    return;
+  }
+  setSceneConfig(scene.id, config);
+  broadcastToScene(scene.id, { type: "SCENE_CONFIG_CHANGED", payload: { scene_id: scene.id, config } });
+}
+
 export const sceneHandlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   SCENE_CREATE: handleSceneCreate,
   SCENE_SWITCH: handleSceneSwitch,
   SCENE_PUSH: handleScenePush,
   SCENE_SET_VISIBLE: handleSceneSetVisible,
   SCENE_MAP_SET: handleSceneMapSet,
+  SCENE_CONFIG_SET: handleSceneConfigSet,
 };

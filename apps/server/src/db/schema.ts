@@ -60,6 +60,12 @@ export function createSchema(db: Database.Database) {
       map_x       REAL NOT NULL DEFAULT 0,
       map_y       REAL NOT NULL DEFAULT 0,
       map_scale   REAL NOT NULL DEFAULT 1,
+      width       REAL NOT NULL DEFAULT 2000,
+      height      REAL NOT NULL DEFAULT 1500,
+      grid_type   TEXT NOT NULL DEFAULT 'square',
+      grid_size   REAL NOT NULL DEFAULT 50,
+      grid_color  TEXT NOT NULL DEFAULT '#ffffff',
+      grid_opacity REAL NOT NULL DEFAULT 0.5,
       created_at  INTEGER NOT NULL DEFAULT (unixepoch())
     );
 

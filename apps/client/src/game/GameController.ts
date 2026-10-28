@@ -45,11 +45,10 @@ export class GameController {
         this.socket.send({ type: "SCENE_MAP_SET", payload: { scene_id: this.currentSceneId, ...map } });
       },
     );
-    this.grid.draw(window.innerWidth, window.innerHeight);
+    this.grid.draw();
 
     window.addEventListener("resize", () => {
       this.pixiApp.resize();
-      this.grid.draw(window.innerWidth, window.innerHeight);
     });
 
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
@@ -79,8 +78,7 @@ export class GameController {
   // Chamado pelo botão "Criar token" da UI (SessionInfo/TokenPanel).
   requestTokenCreate(assetId?: string) {
     if (!this.currentSceneId || !this.canCreateTokens) return;
-    const x = this.grid.snap(window.innerWidth / 2);
-    const y = this.grid.snap(window.innerHeight / 2);
+    const { x, y } = this.grid.spawnPoint();
     this.socket.send({ type: "TOKEN_CREATE_REQUEST", payload: { scene_id: this.currentSceneId, x, y, asset_id: assetId } });
   }
 
@@ -157,6 +155,7 @@ export class GameController {
 
     if (data.type === "SCENE_STATE") {
       this.currentSceneId = data.payload.scene_id;
+      this.grid.setConfig(data.payload.config);
       void this.maps.setMap(data.payload.map, (assetId) => assetUrl(assetId));
       this.clearTokens();
       for (const t of data.payload.tokens) {
@@ -170,6 +169,12 @@ export class GameController {
     if (data.type === "SCENE_MAP_CHANGED") {
       if (data.payload.scene_id !== this.currentSceneId) return;
       void this.maps.setMap(data.payload.map, (assetId) => assetUrl(assetId));
+      return;
+    }
+
+    if (data.type === "SCENE_CONFIG_CHANGED") {
+      if (data.payload.scene_id !== this.currentSceneId) return;
+      this.grid.setConfig(data.payload.config);
       return;
     }
 

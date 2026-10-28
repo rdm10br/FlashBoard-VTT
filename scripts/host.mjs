@@ -11,6 +11,7 @@ const rootDir = path.join(__dirname, "..");
 const CLIENT_INDEX = path.join(rootDir, "apps/client/dist/index.html");
 const SERVER_ENTRY = path.join(rootDir, "apps/server/dist/apps/server/src/server.js");
 const NAMED_TUNNEL_CONFIG = path.join(rootDir, "scripts/tunnel-config.yml");
+const PORT = Number(process.env.PORT ?? 3000);
 
 function runBuild(label, args) {
   console.log(`\n▶ Build ausente — buildando ${label}...`);
@@ -60,7 +61,8 @@ function validateNamedTunnelConfig(configPath) {
     return { valid: false, reason: "campo 'credentials-file' ausente ou inválido" };
   }
 
-  if (!existsSync(parsed["credentials-file"])) {
+  // if (!existsSync(parsed["credentials-file"])) {
+  if (!existsSync(path.resolve(rootDir, parsed["credentials-file"]))) {
     return { valid: false, reason: `arquivo de credenciais não encontrado: ${parsed["credentials-file"]}` };
   }
 
@@ -89,7 +91,8 @@ if (namedTunnel.valid) {
     // Só avisa se o arquivo existe mas está incorreto — se simplesmente não existe, fica em silêncio.
     console.warn(`⚠ tunnel-config.yml encontrado mas inválido (${namedTunnel.reason}). Usando túnel temporário.`);
   }
-  tunnelArgs = ["tunnel", "--url", "http://localhost:3000"];
+  // tunnelArgs = ["tunnel", "--url", "http://localhost:3000"];
+  tunnelArgs = ["tunnel", "--url", `http://localhost:${PORT}`];
 }
 
 // --- Passo 4: sobe o server ---
@@ -101,6 +104,7 @@ const server = spawn("node", [SERVER_ENTRY], {
     ...process.env,
     NODE_ENV: "production",
     HOST: "127.0.0.1",
+    PORT: PORT.toString(),
     TRUST_PROXY_HEADERS: "true",
   },
 });
@@ -154,9 +158,11 @@ if (namedTunnel.valid) {
 }
 
 // --- Encerramento limpo com Ctrl+C ---
-process.on("SIGINT", () => {
-  console.log("\n▶ Encerrando server e túnel...");
-  server.kill();
-  tunnel.kill();
-  process.exit(0);
-});
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    console.log("\n▶ Encerrando server e túnel...");
+    server.kill();
+    tunnel.kill();
+    process.exit(0);
+  });
+}

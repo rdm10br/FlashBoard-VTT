@@ -1,5 +1,5 @@
 import type { Role } from "../db/index.js";
-import type { SceneMap } from "@vtt/protocol";
+import type { GridType, SceneConfig, SceneMap } from "@vtt/protocol";
 import { createScene,
   getScene,
   setSceneVisibility,
@@ -10,25 +10,49 @@ import { createScene,
   deleteToken
 } from "../db/index.js";
 
+export const DEFAULT_SCENE_CONFIG: SceneConfig = {
+  width: 2000, height: 1500,
+  grid_type: "square", grid_size: 50,
+  grid_color: "#ffffff", grid_opacity: 0.5,
+};
+
 export function createSceneForSession(sessionId: string, name: string) {
   const scene = createScene(sessionId, name);
   setSceneVisibility(scene.id, true);
   return scene;
 }
 
+// export function getSceneState(sceneId: string) {
+//   const scene = getScene(sceneId);
+//   if (!scene) return { scene_id: sceneId, tokens: [], map: null };
+//   const tokens = getTokensForScene(sceneId);
+//   const map: SceneMap | null = scene.map_asset_id && scene.map_asset_kind === "map_image"
+//     ? {
+//         asset_id: scene.map_asset_id,
+//         x: scene.map_x,
+//         y: scene.map_y,
+//         scale: scene.map_scale,
+//       }
+//     : null;
+//   return { scene_id: sceneId, tokens, map };
+// }
+
 export function getSceneState(sceneId: string) {
   const scene = getScene(sceneId);
-  if (!scene) return { scene_id: sceneId, tokens: [], map: null };
+  if (!scene) return { scene_id: sceneId, tokens: [], map: null, config: DEFAULT_SCENE_CONFIG };
   const tokens = getTokensForScene(sceneId);
   const map: SceneMap | null = scene.map_asset_id && scene.map_asset_kind === "map_image"
-    ? {
-        asset_id: scene.map_asset_id,
-        x: scene.map_x,
-        y: scene.map_y,
-        scale: scene.map_scale,
-      }
+    ? { asset_id: scene.map_asset_id, x: scene.map_x, y: scene.map_y, scale: scene.map_scale }
     : null;
-  return { scene_id: sceneId, tokens, map };
+  const config: SceneConfig = {
+    width: scene.width,
+    height: scene.height,
+    grid_type: scene.grid_type as GridType,
+    grid_size: scene.grid_size,
+    grid_color: scene.grid_color,
+    grid_opacity: scene.grid_opacity,
+  };
+  return { scene_id: sceneId, tokens, map, config };
 }
 
 export function canEnterScene(sceneId: string, session_id: string, role: Role) {

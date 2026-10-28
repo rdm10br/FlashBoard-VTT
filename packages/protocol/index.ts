@@ -49,12 +49,6 @@ export type Member = {
   role: Role;
 };
 
-export type SceneState = {
-  scene_id: string;
-  tokens: Token[];
-  map: SceneMap | null;
-};
-
 export type SceneMap = {
   asset_id: string;
   x: number;
@@ -124,6 +118,7 @@ export type ClientMessage =
   | { type: "SCENE_PUSH"; payload: { scene_id: string } }
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
   | { type: "SCENE_MAP_SET"; payload: SceneMap & { scene_id: string } | { scene_id: string; asset_id: null } }
+  | { type: "SCENE_CONFIG_SET"; payload: SceneConfig & { scene_id: string } }
   | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
@@ -150,6 +145,7 @@ export type ServerMessage =
   | { type: "SCENE_PUSHED"; payload: { scene_id: string } }
   | { type: "SCENE_VISIBILITY_CHANGED"; payload: { scene_id: string; visible: boolean } }
   | { type: "SCENE_MAP_CHANGED"; payload: { scene_id: string; map: SceneMap | null } }
+  | { type: "SCENE_CONFIG_CHANGED"; payload: { scene_id: string; config: SceneConfig } }
   | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string } }
@@ -160,3 +156,21 @@ export type ServerMessage =
 export type Message = ClientMessage | ServerMessage;
 
 export * from "./limits.js";
+
+export type GridType = "square" | "hex_pointy" | "hex_flat" | "none";
+
+export type SceneConfig = {
+  width: number;
+  height: number;
+  grid_type: GridType;
+  grid_size: number;
+  grid_color: string;
+  grid_opacity: number;
+};
+
+export type SceneState = {
+  scene_id: string;
+  tokens: Token[];
+  map: SceneMap | null;
+  config: SceneConfig;
+};

@@ -24,6 +24,12 @@ export function getScene(id: string) {
         map_y: number;
         map_scale: number;
         map_asset_kind: string | null;
+        width: number;
+        height: number;
+        grid_type: string;
+        grid_size: number;
+        grid_color: string;
+        grid_opacity: number;
       }
     | undefined;
 }
@@ -66,4 +72,15 @@ export function setSceneMap(
     SET map_asset_id = ?, map_x = ?, map_y = ?, map_scale = ?
     WHERE id = ?
   `).run(map.asset_id, map.x, map.y, map.scale, sceneId);
+}
+
+export function setSceneConfig(
+  sceneId: string,
+  c: { width: number; height: number; grid_type: string; grid_size: number; grid_color: string; grid_opacity: number },
+): void {
+  db.prepare(`
+    UPDATE scenes
+    SET width = ?, height = ?, grid_type = ?, grid_size = ?, grid_color = ?, grid_opacity = ?
+    WHERE id = ?
+  `).run(c.width, c.height, c.grid_type, c.grid_size, c.grid_color, c.grid_opacity, sceneId);
 }

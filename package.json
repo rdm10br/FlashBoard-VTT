@@ -3,8 +3,10 @@
   "version": "0.0.1",
   "main": "index.js",
   "type": "module",
+  "engines": { "node": ">=22.12.0" },
   "scripts": {
     "start": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm run build:server && npm run build:client",
     "build:server": "npm --workspace apps/server run build",
     "build:client": "npm --workspace apps/client run build",
     "dev:server": "npm --workspace apps/server run build && npm --workspace apps/server run start",
@@ -25,10 +27,10 @@
     "@types/node": "^25.5.0",
     "concurrently": "^9.2.1",
     "js-yaml": "^5.4.1",
+    "@trailhq/trail-code": "^0.25.0",
     "vite-tsconfig-paths": "^6.1.1"
   },
   "dependencies": {
-    "@trailhq/trail-code": "^0.25.0",
     "@types/ws": "^8.18.1",
     "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
