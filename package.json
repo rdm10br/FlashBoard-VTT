@@ -27,8 +27,7 @@
     "@types/node": "^25.5.0",
     "concurrently": "^9.2.1",
     "js-yaml": "^5.4.1",
-    "@trailhq/trail-code": "^0.25.0",
-    "vite-tsconfig-paths": "^6.1.1"
+    "@trailhq/trail-code": "^0.25.0"
   },
   "dependencies": {
     "@types/ws": "^8.18.1",
