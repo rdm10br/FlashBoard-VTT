@@ -113,7 +113,7 @@ test("account authentication, legacy association, and session revocation", async
     const { createScene, getScene } = await import("../db/sceneRepo.js");
     const { createToken, getToken } = await import("../db/tokenRepo.js");
     const { createAsset } = await import("../db/assetRepo.js");
-    const { createInviteCode, getInviteCode } = await import("../db/inviteRepo.js");
+    const { createInviteCode, getInviteCode, getInviteCodesForSession } = await import("../db/inviteRepo.js");
     const { tokenHandlers } = await import("../handlers/tokenHandlers.js");
     const { sceneHandlers } = await import("../handlers/sceneHandlers.js");
     const { activeScenesPerSession } = await import("../state/activeScenes.js");
@@ -222,6 +222,11 @@ test("account authentication, legacy association, and session revocation", async
       role: "player",
       createdBy: otherUser.user.id,
     });
+    const sessionInviteCode = createInviteCode({
+      sessionId: sessionA.id,
+      role: "player",
+      createdBy: player.user.id,
+    });
     const ws = {
       readyState: WebSocket.OPEN,
       send: (_message: string) => {},
@@ -307,8 +312,66 @@ test("account authentication, legacy association, and session revocation", async
       scale: 1,
     }, { state, ws });
     assert.equal(getScene(sceneA.id)?.map_scale, 0.75);
-    state.role = "gm";
     const { inviteHandlers } = await import("../handlers/inviteHandlers.js");
+
+    sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneA.id, visible: true }, { state, ws });
+    assert.equal(getScene(sceneA.id)?.is_visible, 0, "player cannot change scene visibility");
+    sceneHandlers.SCENE_CONFIG_SET?.({
+      scene_id: sceneA.id,
+      width: 3000,
+      height: 1800,
+      grid_type: "hex_flat",
+      grid_size: 60,
+      grid_color: "#ff0000",
+      grid_opacity: 0.8,
+    }, { state, ws });
+    assert.equal(getScene(sceneA.id)?.width, 2000, "player cannot change scene configuration");
+    sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
+    assert.equal(activeScenesPerSession.has(sessionA.id), false, "player cannot push a scene to the session");
+
+    const inviteExpiry = Math.floor(Date.now() / 1000) + 3600;
+    inviteHandlers.INVITE_CREATE?.({
+      role: "gm",
+      max_uses: 2,
+      expires_at: inviteExpiry,
+    }, { state, ws });
+    assert.equal(getInviteCodesForSession(sessionA.id).length, 1, "player cannot create invites");
+    inviteHandlers.INVITE_DELETE?.({ code: sessionInviteCode }, { state, ws });
+    assert.ok(getInviteCode(sessionInviteCode), "player cannot delete an invite in their session");
+    inviteHandlers.INVITE_DELETE?.({ code: foreignInviteCode }, { state, ws });
+    assert.equal(getInviteCode(foreignInviteCode)?.session_id, sessionB.id);
+
+    state.role = "gm";
+    inviteHandlers.INVITE_DELETE?.({ code: sessionInviteCode }, { state, ws });
+    assert.equal(getInviteCode(sessionInviteCode), undefined, "GM can delete an invite in their session");
+    sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneA.id, visible: true }, { state, ws });
+    assert.equal(getScene(sceneA.id)?.is_visible, 1, "GM can change scene visibility");
+    sceneHandlers.SCENE_CONFIG_SET?.({
+      scene_id: sceneA.id,
+      width: 3000,
+      height: 1800,
+      grid_type: "hex_flat",
+      grid_size: 60,
+      grid_color: "#ff0000",
+      grid_opacity: 0.8,
+    }, { state, ws });
+    assert.equal(getScene(sceneA.id)?.width, 3000, "GM can change scene configuration");
+    sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
+    assert.equal(activeScenesPerSession.get(sessionA.id), sceneA.id, "GM can push a visible scene");
+    activeScenesPerSession.delete(sessionA.id);
+
+    inviteHandlers.INVITE_CREATE?.({
+      role: "viewer",
+      max_uses: 2,
+      expires_at: inviteExpiry,
+    }, { state, ws });
+    const createdInvite = getInviteCodesForSession(sessionA.id)[0];
+    assert.ok(createdInvite, "GM can create an invite");
+    assert.equal(createdInvite.role, "viewer");
+    assert.equal(createdInvite.max_uses, 2);
+    inviteHandlers.INVITE_DELETE?.({ code: createdInvite.code }, { state, ws });
+    assert.equal(getInviteCode(createdInvite.code), undefined, "GM can delete an invite in their session");
+
     inviteHandlers.INVITE_DELETE?.({ code: foreignInviteCode }, { state, ws });
     assert.equal(getInviteCode(foreignInviteCode)?.session_id, sessionB.id);
 
