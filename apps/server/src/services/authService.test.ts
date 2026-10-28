@@ -109,14 +109,14 @@ test("account authentication, legacy association, and session revocation", async
   try {
     await import("../db/index.js");
     const { createUser } = await import("../db/userRepo.js");
-    const { createSession } = await import("../db/sessionRepo.js");
+    const { createSession, getSession } = await import("../db/sessionRepo.js");
     const { createScene, getScene } = await import("../db/sceneRepo.js");
     const { createToken, getToken } = await import("../db/tokenRepo.js");
     const { createAsset } = await import("../db/assetRepo.js");
     const { createInviteCode, getInviteCode, getInviteCodesForSession } = await import("../db/inviteRepo.js");
     const { tokenHandlers } = await import("../handlers/tokenHandlers.js");
     const { sceneHandlers } = await import("../handlers/sceneHandlers.js");
-    const { activeScenesPerSession } = await import("../state/activeScenes.js");
+    const { resolveActiveSceneId } = await import("./sessionService.js");
     const {
       authenticate,
       hashPassword,
@@ -268,7 +268,7 @@ test("account authentication, legacy association, and session revocation", async
     state.role = "gm";
 
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneB.id }, { state, ws });
-    assert.equal(activeScenesPerSession.has(sessionA.id), false);
+    assert.equal(getSession(sessionA.id)?.active_scene_id, null);
     sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneB.id, visible: true }, { state, ws });
     assert.equal(getScene(sceneB.id)?.is_visible, 0);
     sceneHandlers.SCENE_MAP_SET?.({
@@ -327,7 +327,7 @@ test("account authentication, legacy association, and session revocation", async
     }, { state, ws });
     assert.equal(getScene(sceneA.id)?.width, 2000, "player cannot change scene configuration");
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
-    assert.equal(activeScenesPerSession.has(sessionA.id), false, "player cannot push a scene to the session");
+    assert.equal(getSession(sessionA.id)?.active_scene_id, null, "player cannot push a scene to the session");
 
     const inviteExpiry = Math.floor(Date.now() / 1000) + 3600;
     inviteHandlers.INVITE_CREATE?.({
@@ -357,8 +357,10 @@ test("account authentication, legacy association, and session revocation", async
     }, { state, ws });
     assert.equal(getScene(sceneA.id)?.width, 3000, "GM can change scene configuration");
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
-    assert.equal(activeScenesPerSession.get(sessionA.id), sceneA.id, "GM can push a visible scene");
-    activeScenesPerSession.delete(sessionA.id);
+    const persistedActiveSceneId = getSession(sessionA.id)?.active_scene_id ?? undefined;
+    assert.equal(persistedActiveSceneId, sceneA.id, "GM can persist the pushed scene");
+    assert.equal(resolveActiveSceneId(sessionA.id, "player", persistedActiveSceneId), sceneA.id,
+      "rejoining members resolve the scene from persisted session state");
 
     inviteHandlers.INVITE_CREATE?.({
       role: "viewer",

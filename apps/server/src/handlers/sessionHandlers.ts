@@ -3,7 +3,6 @@ import type { HandlerContext, MessageHandler } from "./types.js";
 import { getAsset, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
 import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
-import { activeScenesPerSession } from "../state/activeScenes.js";
 import {
   buildSessionJoinedPayload,
   createSessionForUser,
@@ -54,14 +53,14 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
   clientRegistry.setSession(state, session.id);
   state.role = membership.role;
 
-  const activeSceneId = resolveActiveSceneId(session.id, membership.role, activeScenesPerSession.get(session.id));
+  const activeSceneId = resolveActiveSceneId(session.id, membership.role, session.active_scene_id ?? undefined);
   if (activeSceneId) {
     clientRegistry.setScene(state, activeSceneId);
   }
 
   send(ws, {
     type: "SESSION_JOINED",
-    payload: buildSessionJoinedPayload(session, membership, state.nickname, activeScenesPerSession.get(session.id)),
+    payload: buildSessionJoinedPayload(session, membership, state.nickname, activeSceneId),
   });
 
   if (activeSceneId) {
@@ -87,14 +86,14 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
   clientRegistry.setSession(state, session.id);
   state.role = membership.role;
 
-  const activeSceneId = resolveActiveSceneId(session.id, membership.role, activeScenesPerSession.get(session.id));
+  const activeSceneId = resolveActiveSceneId(session.id, membership.role, session.active_scene_id ?? undefined);
   if (activeSceneId) {
     clientRegistry.setScene(state, activeSceneId);
   }
 
   send(ws, {
     type: "SESSION_JOINED",
-    payload: buildSessionJoinedPayload(session, membership, state.nickname, activeScenesPerSession.get(session.id)),
+    payload: buildSessionJoinedPayload(session, membership, state.nickname, activeSceneId),
   });
 
   if (activeSceneId) {

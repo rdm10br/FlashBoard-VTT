@@ -7,10 +7,9 @@ import {
   getSceneState,
   setSceneVisibilityOnScene,
 } from "../services/gameService.js";
-import { getAsset, getScene, setSceneMap, setSceneConfig } from "../db/index.js";
+import { getAsset, getScene, setActiveScene, setSceneMap, setSceneConfig } from "../db/index.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
-import { activeScenesPerSession } from "../state/activeScenes.js";
 
 // function handleSceneCreate(payload: { name: string }, ctx: HandlerContext) {
 //   const { state } = ctx;
@@ -66,7 +65,7 @@ function handleScenePush(payload: { scene_id: string }, ctx: HandlerContext) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Torne a cena visível antes de enviá-la aos jogadores." } });
     return;
   }
-  activeScenesPerSession.set(session_id, scene_id);
+  setActiveScene(session_id, scene_id);
 
   for (const client of clientRegistry.inSession(session_id)) {
     clientRegistry.setScene(client, scene_id);
