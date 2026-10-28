@@ -221,6 +221,19 @@ test("account authentication, legacy association, and session revocation", async
     tokenHandlers.TOKEN_DELETE?.({ id: tokenA.id }, { state, ws });
     assert.equal(getToken(tokenA.id), undefined);
 
+    const tokenOwnedByPlayer = createToken(sceneA.id, 70, 80, undefined, player.user.id);
+    const tokenOwnedByOtherPlayer = createToken(sceneA.id, 90, 100, undefined, otherUser.user.id);
+    const tokenForGmDelete = createToken(sceneA.id, 110, 120, undefined, otherUser.user.id);
+    tokenHandlers.TOKEN_DELETE?.({ id: tokenForGmDelete.id }, { state, ws });
+    assert.equal(getToken(tokenForGmDelete.id), undefined, "GM can delete any token in the current scene");
+
+    state.role = "player";
+    tokenHandlers.TOKEN_DELETE?.({ id: tokenOwnedByOtherPlayer.id }, { state, ws });
+    assert.ok(getToken(tokenOwnedByOtherPlayer.id), "player cannot delete another player's token");
+    tokenHandlers.TOKEN_DELETE?.({ id: tokenOwnedByPlayer.id }, { state, ws });
+    assert.equal(getToken(tokenOwnedByPlayer.id), undefined, "player can delete their own token");
+    state.role = "gm";
+
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneB.id }, { state, ws });
     assert.equal(activeScenesPerSession.has(sessionA.id), false);
     sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneB.id, visible: true }, { state, ws });

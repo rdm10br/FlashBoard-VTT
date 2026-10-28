@@ -111,6 +111,11 @@ function handleTokenDelete(payload: { id: string }, ctx: HandlerContext) {
     return;
   }
 
+  if (!canActOnToken(token, state)) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Você não tem permissão para excluir este token." } });
+    return;
+  }
+
   deleteTokenOnScene(token.id);
   broadcastToScene(token.scene_id, { type: "TOKEN_DELETED", payload: { id: token.id } });
 }
