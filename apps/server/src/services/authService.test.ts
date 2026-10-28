@@ -110,6 +110,7 @@ test("account authentication, legacy association, and session revocation", async
     await import("../db/index.js");
     const { createUser } = await import("../db/userRepo.js");
     const { createSession, getSession } = await import("../db/sessionRepo.js");
+    const { createMembership } = await import("../db/membershipRepo.js");
     const { createScene, getScene } = await import("../db/sceneRepo.js");
     const { createToken, getToken } = await import("../db/tokenRepo.js");
     const { createAsset } = await import("../db/assetRepo.js");
@@ -197,6 +198,7 @@ test("account authentication, legacy association, and session revocation", async
     });
     const sessionA = createSession("Sessão autorizada", player.user.id);
     const sessionB = createSession("Sessão isolada", otherUser.user.id);
+    createMembership(otherUser.user.id, sessionA.id, "player");
     const sceneA = createScene(sessionA.id, "Cena A");
     const sceneB = createScene(sessionB.id, "Cena B");
     const tokenA = createToken(sceneA.id, 10, 20);
@@ -227,9 +229,12 @@ test("account authentication, legacy association, and session revocation", async
       role: "player",
       createdBy: player.user.id,
     });
+    const sentMessages: { type: string; payload?: Record<string, unknown> }[] = [];
     const ws = {
       readyState: WebSocket.OPEN,
-      send: (_message: string) => {},
+      send: (message: string) => {
+        sentMessages.push(JSON.parse(message) as { type: string; payload?: Record<string, unknown> });
+      },
     } as WebSocket;
     let role: "gm" | "player" = "gm";
     const state: ClientState = {
@@ -361,6 +366,25 @@ test("account authentication, legacy association, and session revocation", async
     assert.equal(persistedActiveSceneId, sceneA.id, "GM can persist the pushed scene");
     assert.equal(resolveActiveSceneId(sessionA.id, "player", persistedActiveSceneId), sceneA.id,
       "rejoining members resolve the scene from persisted session state");
+
+    const { sessionHandlers } = await import("../handlers/sessionHandlers.js");
+    const { clientRegistry } = await import("../clientRegistry.js");
+    state.user_id = otherUser.user.id;
+    state.nickname = otherUser.user.nickname;
+    state.auth_token = otherUser.token;
+    sessionHandlers.SESSION_ENTER?.({ session_id: sessionA.id }, { state, ws });
+    assert.equal(
+      sentMessages.find((message) => message.type === "SESSION_JOINED")?.payload?.active_scene_id,
+      sceneA.id,
+      "session entry returns the persisted active scene",
+    );
+    assert.equal(
+      sentMessages.find((message) => message.type === "SCENE_STATE")?.payload?.scene_id,
+      sceneA.id,
+      "session entry sends state for the persisted active scene",
+    );
+    clientRegistry.remove(state);
+    state.role = "gm";
 
     inviteHandlers.INVITE_CREATE?.({
       role: "viewer",
