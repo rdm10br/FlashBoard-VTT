@@ -20,6 +20,7 @@ import { backupRoutes } from "./http/backupRoutes.js";
 import { LIMITS } from "@vtt/protocol";
 import { refreshSceneParty } from "./handlers/sceneHandlers.js";
 import { registerShutdownCallback } from "./services/serverLifecycle.js";
+import { publishPresence } from "./services/presence.js";
 
 // Cria o equivalente ao __dirname de forma segura para ESM e multiplataforma
 const __filename = fileURLToPath(import.meta.url);
@@ -206,7 +207,10 @@ const start = async () => {
 
     ws.on("close", () => {
       clientRegistry.remove(state);
-      if (state.session_id) refreshSceneParty(state.session_id);
+      if (state.session_id) {
+        refreshSceneParty(state.session_id);
+        publishPresence(state.session_id);
+      }
       console.log("Client desconectado");
     });
 

@@ -202,6 +202,7 @@ export type ServerMessage =
   | { type: "SESSION_ERROR"; payload: { message: string } }
   | { type: "SESSION_DEFAULT_TOKEN_ASSET_CHANGED"; payload: { asset_id: string | null } }
   | { type: "SESSION_MEMBERS"; payload: { session_id: string; members: (Member & { online: boolean })[] } }
+  | { type: "SESSION_PRESENCE"; payload: { session_id: string; members: (Member & { online: boolean })[] } }
   | { type: "INVITE_CREATED"; payload: InviteCodeSummary }
   | { type: "INVITE_DELETED"; payload: { code: string } }
   | { type: "SCENE_CREATED"; payload: Scene }

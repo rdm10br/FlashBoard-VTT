@@ -10,6 +10,7 @@ export class Camera {
   private readonly world: PIXI.Container;
   private sceneWidth = 2000;
   private sceneHeight = 1500;
+  private rightInset = 0;
   private drag: { pointerId: number; x: number; y: number } | null = null;
 
   constructor(viewport: HTMLElement, world: PIXI.Container) {
@@ -36,6 +37,11 @@ export class Camera {
   setSceneBounds(width: number, height: number): void {
     this.sceneWidth = width;
     this.sceneHeight = height;
+    this.clampPosition();
+  }
+
+  setRightInset(width: number): void {
+    this.rightInset = Math.max(0, Math.min(this.viewport.clientWidth, width));
     this.clampPosition();
   }
 
@@ -93,9 +99,10 @@ export class Camera {
 
   private clampPosition(): void {
     const rect = this.viewport.getBoundingClientRect();
+    const usableWidth = Math.max(1, rect.width - this.rightInset);
     const width = this.sceneWidth * this.world.scale.x;
     const height = this.sceneHeight * this.world.scale.y;
-    this.world.x = width <= rect.width ? (rect.width - width) / 2 : Math.min(0, Math.max(rect.width - width, this.world.x));
+    this.world.x = width <= usableWidth ? (usableWidth - width) / 2 : Math.min(0, Math.max(usableWidth - width, this.world.x));
     this.world.y = height <= rect.height ? (rect.height - height) / 2 : Math.min(0, Math.max(rect.height - height, this.world.y));
   }
 }

@@ -1,32 +1,147 @@
-import { useState } from "react";
-import type { ChatMessage } from "@vtt/protocol";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ChatMessage, Member, Role } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
+
+type PresenceMember = Member & { online: boolean };
 
 type ChatPanelProps = {
   chat?: ChatMessage[];
+  presence?: PresenceMember[];
   socket: SocketManager;
-  maxHeight?: string;
+  initialHeight?: number;
 };
 
-export function ChatPanel({ chat, socket, maxHeight = "200px" }: ChatPanelProps) {
+const BOTTOM_THRESHOLD = 24;
+const MIN_HEIGHT = 80;
+// Sobrevive à remontagem do painel (troca de aba / destacar).
+let savedHeight: number | null = null;
+
+function roleLabel(role: Role) {
+  return role === "gm" ? "GM" : role === "player" ? "Player" : "Viewer";
+}
+
+export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: ChatPanelProps) {
   const [chatInput, setChatInput] = useState("");
+  const [atBottom, setAtBottom] = useState(true);
+  const [unread, setUnread] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const prevLengthRef = useRef<number | null>(null);
+  const startHeight = useRef(savedHeight ?? initialHeight);
+  const messages = chat ?? [];
+
+  const onlineMembers = presence
+    .filter((member) => member.online)
+    .sort((a, b) => a.nickname.localeCompare(b.nickname));
+
+  const scrollToBottom = useCallback(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
+  const syncBottomState = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD;
+    stickRef.current = near;
+    setAtBottom(near);
+    if (near) setUnread(0);
+  }, []);
+
+  // Mensagem nova: acompanha se já estava no fim; senão só conta como não lida.
+  useLayoutEffect(() => {
+    const previous = prevLengthRef.current;
+    prevLengthRef.current = messages.length;
+    if (previous === null || messages.length < previous || stickRef.current) {
+      scrollToBottom();
+      setUnread(0);
+      setAtBottom(true);
+      return;
+    }
+    if (messages.length > previous) setUnread((n) => n + (messages.length - previous));
+  }, [messages.length, scrollToBottom]);
+
+  // Redimensionar: guarda a altura e mantém o fim visível se estava colado nele.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      savedHeight = el.offsetHeight;
+      if (stickRef.current) scrollToBottom();
+      syncBottomState();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollToBottom, syncBottomState]);
+
+  function jumpToBottom() {
+    stickRef.current = true;
+    scrollToBottom();
+    setUnread(0);
+    setAtBottom(true);
+  }
 
   function sendChat() {
-    if (!chatInput.trim()) return;
-    socket.send({ type: "CHAT_SEND", payload: { text: chatInput.trim() } });
+    const text = chatInput.trim();
+    if (!text) return;
+    stickRef.current = true;
+    scrollToBottom();
+    socket.send({ type: "CHAT_SEND", payload: { text } });
     setChatInput("");
   }
 
+  const jumpLabel = unread > 0
+    ? `↓ ${unread} ${unread === 1 ? "nova mensagem" : "novas mensagens"}`
+    : "↓ Ir para o final";
+
   return (
     <div style={{ marginTop: "8px" }}>
-      <p style={styles.codesTitle}>Chat</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        <div style={{ maxHeight, overflowY: "auto", background: "#0f1115", padding: "8px", borderRadius: "6px" }}>
-          {(chat ?? []).map((m) => (
-            <div key={m.id} style={{ marginBottom: "6px", color: "#e5e7eb" }}>
-              <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>: <span>{m.text}</span>
-            </div>
+      <div style={styles.presence}>
+        <p style={styles.codesTitle}>Online ({onlineMembers.length})</p>
+        <div style={styles.presenceList}>
+          {onlineMembers.map((member) => (
+            <span key={member.id} style={styles.chip} title={roleLabel(member.role)}>
+              <span style={styles.dot} />
+              {member.nickname}
+              <span style={styles.roleTag}>{roleLabel(member.role)}</span>
+            </span>
           ))}
+        </div>
+      </div>
+
+      <p style={{ ...styles.codesTitle, marginTop: "10px" }}>Chat</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+        <div style={{ position: "relative" }}>
+          <div
+            ref={listRef}
+            role="log"
+            aria-live="polite"
+            onScroll={syncBottomState}
+            style={{
+              height: startHeight.current,
+              minHeight: MIN_HEIGHT,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              resize: "vertical",
+              background: "#0f1115",
+              padding: "8px",
+              borderRadius: "6px",
+            }}
+          >
+            {messages.map((m) => (
+              <div key={m.id} style={{ marginBottom: "6px", color: "#e5e7eb", wordBreak: "break-word" }}>
+                <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>: <span>{m.text}</span>
+              </div>
+            ))}
+          </div>
+          {!atBottom && (
+            <button
+              onClick={jumpToBottom}
+              style={{ ...styles.jump, background: unread > 0 ? "#3b82f6" : "#374151" }}
+            >
+              {jumpLabel}
+            </button>
+          )}
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <input
@@ -44,11 +159,11 @@ export function ChatPanel({ chat, socket, maxHeight = "200px" }: ChatPanelProps)
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  codesTitle: {
-    margin: 0,
-    color: "#9ca3af",
-    fontSize: "12px",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-  },
+  codesTitle: { margin: 0, color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" },
+  presence: { display: "flex", flexDirection: "column", gap: "6px" },
+  presenceList: { display: "flex", flexWrap: "wrap", gap: "6px", maxHeight: "72px", overflowY: "auto" },
+  chip: { display: "inline-flex", alignItems: "center", gap: "5px", padding: "2px 8px", background: "#16171d", border: "1px solid #2e303a", borderRadius: "999px", color: "#e5e7eb", fontSize: "12px" },
+  dot: { width: "7px", height: "7px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 },
+  roleTag: { color: "#6b7280", fontSize: "10px" },
+  jump: { position: "absolute", bottom: "10px", left: "50%", transform: "translateX(-50%)", color: "#fff", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" },
 };

@@ -1,4 +1,8 @@
-import type { InviteCodeSummary, Role, SessionJoinedPayload } from "@vtt/protocol";
+import type {
+  InviteCodeSummary,
+  Role,
+  SessionJoinedPayload,
+} from "@vtt/protocol";
 import db from "../db/connection.js";
 import type { Membership, Session } from "../db/index.js";
 import {
@@ -43,7 +47,11 @@ function resolveScenes(sessionId: string, role: Role) {
   return getVisibleScenes(sessionId);
 }
 
-export function resolveActiveSceneId(sessionId: string, role: Role, activeSceneId?: string) {
+export function resolveActiveSceneId(
+  sessionId: string,
+  role: Role,
+  activeSceneId?: string,
+) {
   const scenes = resolveScenes(sessionId, role);
   if (activeSceneId && scenes.some((scene) => scene.id === activeSceneId)) {
     return activeSceneId;
@@ -55,10 +63,11 @@ export function buildSessionJoinedPayload(
   session: Session,
   membership: Membership,
   nickname: string,
-  activeSceneId?: string
+  activeSceneId?: string,
 ): SessionJoinedPayload {
   const scenes = resolveScenes(session.id, membership.role);
-  const rawInviteCodes = membership.role === "gm" ? getInviteCodesForSession(session.id) : [];
+  const rawInviteCodes =
+    membership.role === "gm" ? getInviteCodesForSession(session.id) : [];
 
   const sceneList = scenes.map((scene) => ({
     id: scene.id,
@@ -66,9 +75,10 @@ export function buildSessionJoinedPayload(
     is_visible: scene.is_visible === 1,
   }));
 
-  const active_scene_id = activeSceneId && sceneList.some((scene) => scene.id === activeSceneId)
-    ? activeSceneId
-    : "";
+  const active_scene_id =
+    activeSceneId && sceneList.some((scene) => scene.id === activeSceneId)
+      ? activeSceneId
+      : "";
 
   return {
     session_id: session.id,
@@ -88,7 +98,7 @@ export function buildSessionJoinedPayload(
 export function createSessionForUser(
   userId: string,
   nickname: string,
-  name: string
+  name: string,
 ): SessionJoinResult {
   return db.transaction(() => {
     const session = createSession(name, userId);
@@ -100,32 +110,29 @@ export function createSessionForUser(
 export function joinSessionByCode(
   userId: string,
   code: string,
-  nickname: string
+  nickname: string,
 ): SessionJoinOutcome {
-  const invite = getInviteCode(code.toUpperCase());
-  if (!invite) {
-    return { error: "Código de convite inválido." };
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-  if (invite.expires_at && invite.expires_at < now) {
-    return { error: "Código de convite expirado." };
-  }
-
-  if (invite.max_uses !== null && invite.use_count >= invite.max_uses) {
-    return { error: "Código de convite esgotado." };
-  }
+  const normalized = code.toUpperCase();
+  const invite = getInviteCode(normalized);
+  if (!invite) return { error: "Código de convite inválido." };
 
   const session = getSession(invite.session_id);
-  if (!session) {
-    return { error: "Sessão não encontrada." };
-  }
+  if (!session) return { error: "Sessão não encontrada." };
 
   const existing = getMembership(userId, session.id);
-  const membership = existing ?? createMembership(userId, session.id, invite.role);
-  if (!existing) {
-    useInviteCode(code.toUpperCase());
-  }
+  if (existing) return { result: { session, membership: existing } };
+
+  const now = Math.floor(Date.now() / 1000);
+  if (invite.expires_at && invite.expires_at < now)
+    return { error: "Código de convite expirado." };
+  if (invite.max_uses !== null && invite.use_count >= invite.max_uses)
+    return { error: "Código de convite esgotado." };
+
+  const membership = db.transaction(() => {
+    const created = createMembership(userId, session.id, invite.role);
+    useInviteCode(normalized);
+    return created;
+  })();
 
   return { result: { session, membership } };
 }
@@ -133,7 +140,7 @@ export function joinSessionByCode(
 export function enterSession(
   userId: string,
   sessionId: string,
-  nickname: string
+  nickname: string,
 ): SessionJoinOutcome {
   const membership = getMembership(userId, sessionId);
   if (!membership) {

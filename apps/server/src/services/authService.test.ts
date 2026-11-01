@@ -46,9 +46,11 @@ test("legacy user rows survive the credential migration without gaining a login"
   createSchema(legacyDb);
   runMigrations(legacyDb);
   runMigrations(legacyDb);
-  const user = legacyDb.prepare(
-    "SELECT id, nickname, email, password_hash, is_admin FROM users WHERE id = ?",
-  ).get("legacy-1") as {
+  const user = legacyDb
+    .prepare(
+      "SELECT id, nickname, email, password_hash, is_admin FROM users WHERE id = ?",
+    )
+    .get("legacy-1") as {
     id: string;
     nickname: string;
     email: string | null;
@@ -63,15 +65,21 @@ test("legacy user rows survive the credential migration without gaining a login"
     password_hash: null,
     is_admin: 0,
   });
-  const sceneColumns = legacyDb.prepare("PRAGMA table_info(scenes)").all() as { name: string }[];
+  const sceneColumns = legacyDb.prepare("PRAGMA table_info(scenes)").all() as {
+    name: string;
+  }[];
   assert.deepEqual(
-    sceneColumns.filter((column) => column.name.startsWith("map_")).map((column) => column.name),
+    sceneColumns
+      .filter((column) => column.name.startsWith("map_"))
+      .map((column) => column.name),
     ["map_asset_id", "map_x", "map_y", "map_scale"],
   );
-  const appliedMigrations = legacyDb.prepare(
-    "SELECT version, name FROM schema_migrations ORDER BY version",
-  ).all();
-  assert.deepEqual(appliedMigrations, [{ version: 1, name: "legacy-schema-compatibility" }]);
+  const appliedMigrations = legacyDb
+    .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
+    .all();
+  assert.deepEqual(appliedMigrations, [
+    { version: 1, name: "legacy-schema-compatibility" },
+  ]);
   legacyDb.close();
 });
 
@@ -89,10 +97,19 @@ test("schema migrations roll back all changes when a migration fails", () => {
   `);
 
   assert.throws(() => runMigrations(failingDb), /UNIQUE constraint failed/);
-  const userColumns = failingDb.prepare("PRAGMA table_info(users)").all() as { name: string }[];
-  assert.equal(userColumns.some((column) => column.name === "password_hash"), false);
+  const userColumns = failingDb.prepare("PRAGMA table_info(users)").all() as {
+    name: string;
+  }[];
   assert.equal(
-    (failingDb.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get() as { count: number }).count,
+    userColumns.some((column) => column.name === "password_hash"),
+    false,
+  );
+  assert.equal(
+    (
+      failingDb
+        .prepare("SELECT COUNT(*) AS count FROM schema_migrations")
+        .get() as { count: number }
+    ).count,
     0,
   );
   failingDb.close();
@@ -114,7 +131,8 @@ test("account authentication, legacy association, and session revocation", async
     const { createScene, getScene } = await import("../db/sceneRepo.js");
     const { createToken, getToken } = await import("../db/tokenRepo.js");
     const { createAsset } = await import("../db/assetRepo.js");
-    const { createInviteCode, getInviteCode, getInviteCodesForSession } = await import("../db/inviteRepo.js");
+    const { createInviteCode, getInviteCode, getInviteCodesForSession } =
+      await import("../db/inviteRepo.js");
     const { tokenHandlers } = await import("../handlers/tokenHandlers.js");
     const { sceneHandlers } = await import("../handlers/sceneHandlers.js");
     const { resolveActiveSceneId } = await import("./sessionService.js");
@@ -128,7 +146,10 @@ test("account authentication, legacy association, and session revocation", async
     } = await import("./authService.js");
 
     const legacyUser = createUser("Aventureiro");
-    assert.equal(await authenticate("Aventureiro", "senha muito segura"), undefined);
+    assert.equal(
+      await authenticate("Aventureiro", "senha muito segura"),
+      undefined,
+    );
     assert.equal(isAdminBootstrapAvailable(), true);
 
     const firstAdmin = await registerAccount({
@@ -140,27 +161,50 @@ test("account authentication, legacy association, and session revocation", async
     assert.equal(firstAdmin.user.is_admin, true);
     assert.equal(isAdminBootstrapAvailable(), false);
 
-    assert.equal((await authenticate("admin@example.com", "senha de administrador segura"))?.user.id, firstAdmin.user.id);
-    assert.equal((await authenticate("ADMIN", "senha de administrador segura"))?.user.id, firstAdmin.user.id);
-    assert.equal(await authenticate("admin@example.com", "senha incorreta"), undefined);
+    assert.equal(
+      (await authenticate("admin@example.com", "senha de administrador segura"))
+        ?.user.id,
+      firstAdmin.user.id,
+    );
+    assert.equal(
+      (await authenticate("ADMIN", "senha de administrador segura"))?.user.id,
+      firstAdmin.user.id,
+    );
+    assert.equal(
+      await authenticate("admin@example.com", "senha incorreta"),
+      undefined,
+    );
     for (let attempt = 0; attempt < 10; attempt += 1) {
       await authenticate("admin@example.com", "senha incorreta", "test-client");
     }
     assert.equal(
-      await authenticate("admin@example.com", "senha de administrador segura", "test-client"),
+      await authenticate(
+        "admin@example.com",
+        "senha de administrador segura",
+        "test-client",
+      ),
       undefined,
       "login attempts should be temporarily throttled by client and identifier",
     );
-    assert.equal(resumeAuthentication(firstAdmin.token)?.user.id, firstAdmin.user.id);
+    assert.equal(
+      resumeAuthentication(firstAdmin.token)?.user.id,
+      firstAdmin.user.id,
+    );
 
     const player = await registerAccount({
       email: "player@example.com",
       nickname: "Jogador",
       password: "uma senha segura para jogador",
     });
-    const playerLogin = await authenticate("player@example.com", "uma senha segura para jogador");
+    const playerLogin = await authenticate(
+      "player@example.com",
+      "uma senha segura para jogador",
+    );
     assert.ok(playerLogin);
-    assert.equal(resumeAuthentication(playerLogin.token)?.user.id, player.user.id);
+    assert.equal(
+      resumeAuthentication(playerLogin.token)?.user.id,
+      player.user.id,
+    );
 
     assert.equal(
       updateAccountCredentials(
@@ -171,8 +215,15 @@ test("account authentication, legacy association, and session revocation", async
       true,
     );
     assert.equal(resumeAuthentication(playerLogin.token), undefined);
-    assert.equal(await authenticate("player@example.com", "uma senha segura para jogador"), undefined);
-    assert.equal((await authenticate("NEW-PLAYER@example.com", "senha nova para jogador"))?.user.id, player.user.id);
+    assert.equal(
+      await authenticate("player@example.com", "uma senha segura para jogador"),
+      undefined,
+    );
+    assert.equal(
+      (await authenticate("NEW-PLAYER@example.com", "senha nova para jogador"))
+        ?.user.id,
+      player.user.id,
+    );
 
     assert.equal(
       updateAccountCredentials(
@@ -183,11 +234,17 @@ test("account authentication, legacy association, and session revocation", async
       true,
     );
     assert.equal(
-      (await authenticate("aventureiro@example.com", "nova senha segura para conta antiga"))?.user.id,
+      (
+        await authenticate(
+          "aventureiro@example.com",
+          "nova senha segura para conta antiga",
+        )
+      )?.user.id,
       legacyUser.id,
     );
     assert.equal(
-      (await authenticate("Aventureiro", "nova senha segura para conta antiga"))?.user.id,
+      (await authenticate("Aventureiro", "nova senha segura para conta antiga"))
+        ?.user.id,
       legacyUser.id,
     );
 
@@ -229,11 +286,17 @@ test("account authentication, legacy association, and session revocation", async
       role: "player",
       createdBy: player.user.id,
     });
-    const sentMessages: { type: string; payload?: Record<string, unknown> }[] = [];
+    const sentMessages: { type: string; payload?: Record<string, unknown> }[] =
+      [];
     const ws = {
       readyState: WebSocket.OPEN,
       send: (message: string) => {
-        sentMessages.push(JSON.parse(message) as { type: string; payload?: Record<string, unknown> });
+        sentMessages.push(
+          JSON.parse(message) as {
+            type: string;
+            payload?: Record<string, unknown>;
+          },
+        );
       },
     } as WebSocket;
     let role: "gm" | "player" = "gm";
@@ -249,48 +312,95 @@ test("account authentication, legacy association, and session revocation", async
       scene_id: sceneA.id,
     };
 
-    tokenHandlers.TOKEN_MOVE?.({ id: tokenB.id, x: 900, y: 900 }, { state, ws });
+    tokenHandlers.TOKEN_MOVE?.(
+      { id: tokenB.id, x: 900, y: 900 },
+      { state, ws },
+    );
     assert.deepEqual(getToken(tokenB.id), tokenB);
     tokenHandlers.TOKEN_MOVE?.({ id: tokenA.id, x: 50, y: 60 }, { state, ws });
-    assert.deepEqual({ x: getToken(tokenA.id)?.x, y: getToken(tokenA.id)?.y }, { x: 50, y: 60 });
-    
+    assert.deepEqual(
+      { x: getToken(tokenA.id)?.x, y: getToken(tokenA.id)?.y },
+      { x: 50, y: 60 },
+    );
+
     tokenHandlers.TOKEN_DELETE?.({ id: tokenB.id }, { state, ws });
     assert.deepEqual(getToken(tokenB.id), tokenB); // token de outra sessão não some
     tokenHandlers.TOKEN_DELETE?.({ id: tokenA.id }, { state, ws });
     assert.equal(getToken(tokenA.id), undefined);
 
-    const tokenOwnedByPlayer = createToken(sceneA.id, 70, 80, undefined, player.user.id);
-    const tokenOwnedByOtherPlayer = createToken(sceneA.id, 90, 100, undefined, otherUser.user.id);
-    const tokenForGmDelete = createToken(sceneA.id, 110, 120, undefined, otherUser.user.id);
+    const tokenOwnedByPlayer = createToken(
+      sceneA.id,
+      70,
+      80,
+      undefined,
+      player.user.id,
+    );
+    const tokenOwnedByOtherPlayer = createToken(
+      sceneA.id,
+      90,
+      100,
+      undefined,
+      otherUser.user.id,
+    );
+    const tokenForGmDelete = createToken(
+      sceneA.id,
+      110,
+      120,
+      undefined,
+      otherUser.user.id,
+    );
     tokenHandlers.TOKEN_DELETE?.({ id: tokenForGmDelete.id }, { state, ws });
-    assert.equal(getToken(tokenForGmDelete.id), undefined, "GM can delete any token in the current scene");
+    assert.equal(
+      getToken(tokenForGmDelete.id),
+      undefined,
+      "GM can delete any token in the current scene",
+    );
 
     state.role = "player";
-    tokenHandlers.TOKEN_DELETE?.({ id: tokenOwnedByOtherPlayer.id }, { state, ws });
-    assert.ok(getToken(tokenOwnedByOtherPlayer.id), "player cannot delete another player's token");
+    tokenHandlers.TOKEN_DELETE?.(
+      { id: tokenOwnedByOtherPlayer.id },
+      { state, ws },
+    );
+    assert.ok(
+      getToken(tokenOwnedByOtherPlayer.id),
+      "player cannot delete another player's token",
+    );
     tokenHandlers.TOKEN_DELETE?.({ id: tokenOwnedByPlayer.id }, { state, ws });
-    assert.equal(getToken(tokenOwnedByPlayer.id), undefined, "player can delete their own token");
+    assert.equal(
+      getToken(tokenOwnedByPlayer.id),
+      undefined,
+      "player can delete their own token",
+    );
     state.role = "gm";
 
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneB.id }, { state, ws });
     assert.equal(getSession(sessionA.id)?.active_scene_id, null);
-    sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneB.id, visible: true }, { state, ws });
+    sceneHandlers.SCENE_SET_VISIBLE?.(
+      { scene_id: sceneB.id, visible: true },
+      { state, ws },
+    );
     assert.equal(getScene(sceneB.id)?.is_visible, 0);
-    sceneHandlers.SCENE_MAP_SET?.({
-      scene_id: sceneA.id,
-      asset_id: foreignMapAsset.id,
-      x: 0,
-      y: 0,
-      scale: 1,
-    }, { state, ws });
+    sceneHandlers.SCENE_MAP_SET?.(
+      {
+        scene_id: sceneA.id,
+        asset_id: foreignMapAsset.id,
+        x: 0,
+        y: 0,
+        scale: 1,
+      },
+      { state, ws },
+    );
     assert.equal(getScene(sceneA.id)?.map_asset_id, null);
-    sceneHandlers.SCENE_MAP_SET?.({
-      scene_id: sceneA.id,
-      asset_id: mapAsset.id,
-      x: 120,
-      y: 90,
-      scale: 0.75,
-    }, { state, ws });
+    sceneHandlers.SCENE_MAP_SET?.(
+      {
+        scene_id: sceneA.id,
+        asset_id: mapAsset.id,
+        x: 120,
+        y: 90,
+        scale: 0.75,
+      },
+      { state, ws },
+    );
     assert.deepEqual(
       {
         map_asset_id: getScene(sceneA.id)?.map_asset_id,
@@ -300,72 +410,132 @@ test("account authentication, legacy association, and session revocation", async
       },
       { map_asset_id: mapAsset.id, map_x: 120, map_y: 90, map_scale: 0.75 },
     );
-    sceneHandlers.SCENE_MAP_SET?.({
-      scene_id: sceneA.id,
-      asset_id: mapAsset.id,
-      x: 0,
-      y: 0,
-      scale: 20,
-    }, { state, ws });
+    sceneHandlers.SCENE_MAP_SET?.(
+      {
+        scene_id: sceneA.id,
+        asset_id: mapAsset.id,
+        x: 0,
+        y: 0,
+        scale: 20,
+      },
+      { state, ws },
+    );
     assert.equal(getScene(sceneA.id)?.map_scale, 0.75);
     state.role = "player";
-    sceneHandlers.SCENE_MAP_SET?.({
-      scene_id: sceneA.id,
-      asset_id: mapAsset.id,
-      x: 0,
-      y: 0,
-      scale: 1,
-    }, { state, ws });
+    sceneHandlers.SCENE_MAP_SET?.(
+      {
+        scene_id: sceneA.id,
+        asset_id: mapAsset.id,
+        x: 0,
+        y: 0,
+        scale: 1,
+      },
+      { state, ws },
+    );
     assert.equal(getScene(sceneA.id)?.map_scale, 0.75);
     const { inviteHandlers } = await import("../handlers/inviteHandlers.js");
 
-    sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneA.id, visible: true }, { state, ws });
-    assert.equal(getScene(sceneA.id)?.is_visible, 0, "player cannot change scene visibility");
-    sceneHandlers.SCENE_CONFIG_SET?.({
-      scene_id: sceneA.id,
-      width: 3000,
-      height: 1800,
-      grid_type: "hex_flat",
-      grid_size: 60,
-      grid_color: "#ff0000",
-      grid_opacity: 0.8,
-    }, { state, ws });
-    assert.equal(getScene(sceneA.id)?.width, 2000, "player cannot change scene configuration");
+    sceneHandlers.SCENE_SET_VISIBLE?.(
+      { scene_id: sceneA.id, visible: true },
+      { state, ws },
+    );
+    assert.equal(
+      getScene(sceneA.id)?.is_visible,
+      0,
+      "player cannot change scene visibility",
+    );
+    sceneHandlers.SCENE_CONFIG_SET?.(
+      {
+        scene_id: sceneA.id,
+        width: 3000,
+        height: 1800,
+        grid_type: "hex_flat",
+        grid_size: 60,
+        grid_color: "#ff0000",
+        grid_opacity: 0.8,
+      },
+      { state, ws },
+    );
+    assert.equal(
+      getScene(sceneA.id)?.width,
+      2000,
+      "player cannot change scene configuration",
+    );
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
-    assert.equal(getSession(sessionA.id)?.active_scene_id, null, "player cannot push a scene to the session");
+    assert.equal(
+      getSession(sessionA.id)?.active_scene_id,
+      null,
+      "player cannot push a scene to the session",
+    );
 
     const inviteExpiry = Math.floor(Date.now() / 1000) + 3600;
-    inviteHandlers.INVITE_CREATE?.({
-      role: "gm",
-      max_uses: 2,
-      expires_at: inviteExpiry,
-    }, { state, ws });
-    assert.equal(getInviteCodesForSession(sessionA.id).length, 1, "player cannot create invites");
+    inviteHandlers.INVITE_CREATE?.(
+      {
+        role: "gm",
+        max_uses: 2,
+        expires_at: inviteExpiry,
+      },
+      { state, ws },
+    );
+    assert.equal(
+      getInviteCodesForSession(sessionA.id).length,
+      1,
+      "player cannot create invites",
+    );
     inviteHandlers.INVITE_DELETE?.({ code: sessionInviteCode }, { state, ws });
-    assert.ok(getInviteCode(sessionInviteCode), "player cannot delete an invite in their session");
+    assert.ok(
+      getInviteCode(sessionInviteCode),
+      "player cannot delete an invite in their session",
+    );
     inviteHandlers.INVITE_DELETE?.({ code: foreignInviteCode }, { state, ws });
     assert.equal(getInviteCode(foreignInviteCode)?.session_id, sessionB.id);
 
     state.role = "gm";
     inviteHandlers.INVITE_DELETE?.({ code: sessionInviteCode }, { state, ws });
-    assert.equal(getInviteCode(sessionInviteCode), undefined, "GM can delete an invite in their session");
-    sceneHandlers.SCENE_SET_VISIBLE?.({ scene_id: sceneA.id, visible: true }, { state, ws });
-    assert.equal(getScene(sceneA.id)?.is_visible, 1, "GM can change scene visibility");
-    sceneHandlers.SCENE_CONFIG_SET?.({
-      scene_id: sceneA.id,
-      width: 3000,
-      height: 1800,
-      grid_type: "hex_flat",
-      grid_size: 60,
-      grid_color: "#ff0000",
-      grid_opacity: 0.8,
-    }, { state, ws });
-    assert.equal(getScene(sceneA.id)?.width, 3000, "GM can change scene configuration");
+    assert.equal(
+      getInviteCode(sessionInviteCode),
+      undefined,
+      "GM can delete an invite in their session",
+    );
+    sceneHandlers.SCENE_SET_VISIBLE?.(
+      { scene_id: sceneA.id, visible: true },
+      { state, ws },
+    );
+    assert.equal(
+      getScene(sceneA.id)?.is_visible,
+      1,
+      "GM can change scene visibility",
+    );
+    sceneHandlers.SCENE_CONFIG_SET?.(
+      {
+        scene_id: sceneA.id,
+        width: 3000,
+        height: 1800,
+        grid_type: "hex_flat",
+        grid_size: 60,
+        grid_color: "#ff0000",
+        grid_opacity: 0.8,
+      },
+      { state, ws },
+    );
+    assert.equal(
+      getScene(sceneA.id)?.width,
+      3000,
+      "GM can change scene configuration",
+    );
     sceneHandlers.SCENE_PUSH?.({ scene_id: sceneA.id }, { state, ws });
-    const persistedActiveSceneId = getSession(sessionA.id)?.active_scene_id ?? undefined;
-    assert.equal(persistedActiveSceneId, sceneA.id, "GM can persist the pushed scene");
-    assert.equal(resolveActiveSceneId(sessionA.id, "player", persistedActiveSceneId), sceneA.id,
-      "rejoining members resolve the scene from persisted session state");
+    const persistedActiveSceneId =
+      getSession(sessionA.id)?.active_scene_id ?? undefined;
+    assert.equal(
+      persistedActiveSceneId,
+      sceneA.id,
+      "GM can persist the pushed scene",
+    );
+    assert.equal(
+      resolveActiveSceneId(sessionA.id, "player", persistedActiveSceneId),
+      sceneA.id,
+      "rejoining members resolve the scene from persisted session state",
+    );
 
     const { sessionHandlers } = await import("../handlers/sessionHandlers.js");
     const { clientRegistry } = await import("../clientRegistry.js");
@@ -374,29 +544,38 @@ test("account authentication, legacy association, and session revocation", async
     state.auth_token = otherUser.token;
     sessionHandlers.SESSION_ENTER?.({ session_id: sessionA.id }, { state, ws });
     assert.equal(
-      sentMessages.find((message) => message.type === "SESSION_JOINED")?.payload?.active_scene_id,
+      sentMessages.find((message) => message.type === "SESSION_JOINED")?.payload
+        ?.active_scene_id,
       sceneA.id,
       "session entry returns the persisted active scene",
     );
     assert.equal(
-      sentMessages.find((message) => message.type === "SCENE_STATE")?.payload?.scene_id,
+      sentMessages.find((message) => message.type === "SCENE_STATE")?.payload
+        ?.scene_id,
       sceneA.id,
       "session entry sends state for the persisted active scene",
     );
     clientRegistry.remove(state);
     state.role = "gm";
 
-    inviteHandlers.INVITE_CREATE?.({
-      role: "viewer",
-      max_uses: 2,
-      expires_at: inviteExpiry,
-    }, { state, ws });
+    inviteHandlers.INVITE_CREATE?.(
+      {
+        role: "viewer",
+        max_uses: 2,
+        expires_at: inviteExpiry,
+      },
+      { state, ws },
+    );
     const createdInvite = getInviteCodesForSession(sessionA.id)[0];
     assert.ok(createdInvite, "GM can create an invite");
     assert.equal(createdInvite.role, "viewer");
     assert.equal(createdInvite.max_uses, 2);
     inviteHandlers.INVITE_DELETE?.({ code: createdInvite.code }, { state, ws });
-    assert.equal(getInviteCode(createdInvite.code), undefined, "GM can delete an invite in their session");
+    assert.equal(
+      getInviteCode(createdInvite.code),
+      undefined,
+      "GM can delete an invite in their session",
+    );
 
     inviteHandlers.INVITE_DELETE?.({ code: foreignInviteCode }, { state, ws });
     assert.equal(getInviteCode(foreignInviteCode)?.session_id, sessionB.id);
@@ -422,7 +601,8 @@ test("account authentication, legacy association, and session revocation", async
     rmSync(testDataDir, { recursive: true, force: true });
     if (previousDataDir === undefined) delete process.env.VTT_DATA_DIR;
     else process.env.VTT_DATA_DIR = previousDataDir;
-    if (previousBootstrapToken === undefined) delete process.env.ADMIN_BOOTSTRAP_TOKEN;
+    if (previousBootstrapToken === undefined)
+      delete process.env.ADMIN_BOOTSTRAP_TOKEN;
     else process.env.ADMIN_BOOTSTRAP_TOKEN = previousBootstrapToken;
   }
 });

@@ -57,6 +57,11 @@ export class GameController {
     await this.pixiApp.init();
 
     this.camera = new Camera(this.pixiApp.app.canvas, this.pixiApp.camera);
+    this.camera.setRightInset(parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--vtt-sidebar-inset")) || 0);
+    window.addEventListener("vtt-sidebar-width", (event) => {
+      const width = (event as CustomEvent<{ width?: number }>).detail?.width;
+      this.camera.setRightInset(typeof width === "number" ? width : 0);
+    });
     const canvas = this.pixiApp.app.canvas;
     canvas.addEventListener("dragover", (event) => {
       if (event.dataTransfer?.types.includes("application/x-vtt-sheet-id")) event.preventDefault();

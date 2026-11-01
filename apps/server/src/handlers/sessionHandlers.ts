@@ -12,6 +12,7 @@ import {
   joinSessionByCode,
   resolveActiveSceneId,
 } from "../services/sessionService.js";
+import { publishPresence } from "../services/presence.js";
 
 function handleSessionCreate(payload: { name: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
@@ -35,6 +36,7 @@ function handleSessionCreate(payload: { name: string }, ctx: HandlerContext) {
     type: "SESSION_JOINED",
     payload: buildSessionJoinedPayload(session, membership, state.nickname),
   });
+  publishPresence(session.id);
 }
 
 function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
@@ -69,6 +71,7 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
   if (activeSceneId) {
     sendSceneState(ws, activeSceneId, state.user_id!);
   }
+  publishPresence(session.id);
 }
 
 function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext) {
@@ -103,6 +106,7 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
   if (activeSceneId) {
     sendSceneState(ws, activeSceneId, state.user_id!);
   }
+  publishPresence(session.id);
 }
 
 function handleSessionSetDefaultTokenAsset(payload: { asset_id: string | null }, ctx: HandlerContext) {
@@ -135,6 +139,7 @@ export const sessionHandlers: Partial<Record<ClientMessage["type"], MessageHandl
     clientRegistry.setSession(state, null);
     state.role = "player";
     refreshSceneParty(sessionId);
+    publishPresence(sessionId);
     send(ws, { type: "SESSION_LEFT", payload: {} });
   },
   SESSION_SET_DEFAULT_TOKEN_ASSET: handleSessionSetDefaultTokenAsset,
@@ -189,4 +194,5 @@ function sendSessionMembers(sessionId: string) {
   const online = new Set(clients.map((client) => client.user_id).filter((id): id is string => !!id));
   const members = getMembersForSession(sessionId).map(({ id, nickname, role }) => ({ id, nickname, role, online: online.has(id) }));
   for (const client of clients) if (client.role === "gm") send(client.ws, { type: "SESSION_MEMBERS", payload: { session_id: sessionId, members } });
+  publishPresence(sessionId);
 }

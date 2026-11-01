@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Member, Role, Scene, ScenePartyMember, SceneConfig, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
+import type {
+  ChatMessage,
+  InviteCodeSummary,
+  Member,
+  Role,
+  Scene,
+  ScenePartyMember,
+  SceneConfig,
+  SceneMap,
+  SceneMeasurementConfig,
+  SessionAsset,
+} from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
@@ -29,27 +40,80 @@ type SessionInfoProps = {
   measurementConfig: SceneMeasurementConfig | null;
   socket: SocketManager;
   chat?: ChatMessage[];
+  presence: (Member & { online: boolean })[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, scenes, party, party_scene_id, assets, assetError, current_scene_id, map, sceneConfig, measurementConfig, socket, chat }: SessionInfoProps) {
-  const [activeTab, setActiveTab] = useState<"session" | "scenes" | "tokens" | "chat" | "map" | "tools">(() => (role === "gm" ? "session" : role === "viewer" ? "scenes" : "tokens"));
-  const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
+export function SessionInfo({
+  session_id,
+  sessionName,
+  nickname,
+  role,
+  invite_codes,
+  scenes,
+  party,
+  party_scene_id,
+  assets,
+  assetError,
+  current_scene_id,
+  map,
+  sceneConfig,
+  measurementConfig,
+  socket,
+  chat,
+  presence,
+}: SessionInfoProps) {
+  const [activeTab, setActiveTab] = useState<
+    "session" | "scenes" | "tokens" | "chat" | "map" | "tools"
+  >(() =>
+    role === "gm" ? "session" : role === "viewer" ? "scenes" : "tokens",
+  );
+  const [detachedTab, setDetachedTab] = useState<
+    null | "session" | "tokens" | "chat" | "map"
+  >(null);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
   const [members, setMembers] = useState<(Member & { online: boolean })[]>([]);
 
   useEffect(() => {
     if (role !== "gm") return;
-    const refresh = () => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } });
-    const onMembers = (event: Event) => setMembers((event as CustomEvent<(Member & { online: boolean })[]>).detail);
+    const refresh = () =>
+      socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } });
+    const onMembers = (event: Event) =>
+      setMembers(
+        (event as CustomEvent<(Member & { online: boolean })[]>).detail,
+      );
     window.addEventListener("vtt-session-members", onMembers);
     refresh();
     const timer = window.setInterval(refresh, 10000);
-    return () => { window.removeEventListener("vtt-session-members", onMembers); window.clearInterval(timer); };
+    return () => {
+      window.removeEventListener("vtt-session-members", onMembers);
+      window.clearInterval(timer);
+    };
   }, [role, session_id, socket]);
 
   // useRef para o estado de resize: persiste entre renders sem recriar referências.
   const resizing = useRef({ active: false, startX: 0, startWidth: 380 });
+
+  useEffect(() => {
+    const inset = collapsed ? 48 : width;
+    document.documentElement.style.setProperty(
+      "--vtt-sidebar-inset",
+      `${inset}px`,
+    );
+    window.dispatchEvent(
+      new CustomEvent("vtt-sidebar-width", { detail: { width: inset } }),
+    );
+  }, [collapsed, width]);
+
+  useEffect(
+    () => () => {
+      document.documentElement.style.setProperty("--vtt-sidebar-inset", "0px");
+      window.dispatchEvent(
+        new CustomEvent("vtt-sidebar-width", { detail: { width: 0 } }),
+      );
+    },
+    [],
+  );
 
   // Referências estáveis dos handlers para que removeEventListener funcione corretamente.
   const handleDoResize = useRef((e: MouseEvent) => {
@@ -95,75 +159,235 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
     document.addEventListener("mouseup", handleStopResize.current);
   }
 
-  function toggleDetach(tab: "session" | "tokens" | "chat" | "map", fallback: "session" | "tokens" | "chat" | "map") {
+  function toggleDetach(
+    tab: "session" | "tokens" | "chat" | "map",
+    fallback: "session" | "tokens" | "chat" | "map",
+  ) {
     const next = detachedTab === tab ? null : tab;
     setDetachedTab(next);
     if (next === tab) setActiveTab(fallback);
   }
 
   // Cada painel é criado uma única vez — só muda de lugar (docked ou floating) conforme detachedTab.
-  const sessionPanelElement = role === "gm" ? (
-    <>
-      <section style={{ display: "flex", flexDirection: "column", gap: 8, color: "#d1d5db", fontSize: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ color: "#f3f4f6" }}>Participantes ({members.length})</strong>
-          <button style={styles.collapseBtn} onClick={() => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } })}>Atualizar</button>
-        </div>
-        {members.map((member) => <div key={member.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ flex: 1 }}>{member.nickname} · {member.online ? "online" : "offline"}</span>
-          <select aria-label={`Cargo de ${member.nickname}`} value={member.role} onChange={(event) => {
-            socket.send({ type: "SESSION_MEMBER_ROLE_SET", payload: { user_id: member.id, role: event.target.value as Role } });
-            window.setTimeout(() => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } }), 500);
-          }} style={{ background: "#0f172a", color: "#f3f4f6", border: "1px solid #343744", borderRadius: 4 }}>
-            <option value="gm">GM</option><option value="player">Player</option><option value="viewer">Viewer</option>
-          </select>
-          <button style={styles.leaveBtn} onClick={() => { if (window.confirm(`Remover ${member.nickname} da sessão?`)) socket.send({ type: "SESSION_MEMBER_REMOVE", payload: { user_id: member.id } }); }}>Remover</button>
-        </div>)}
-      </section>
-      <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
-      <AssetLibraryPanel assets={assets} error={assetError} socket={socket} />
-    </>
-  ) : null;
+  const sessionPanelElement =
+    role === "gm" ? (
+      <>
+        <section
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            color: "#d1d5db",
+            fontSize: 12,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <strong style={{ color: "#f3f4f6" }}>
+              Participantes ({members.length})
+            </strong>
+            <button
+              style={styles.collapseBtn}
+              onClick={() =>
+                socket.send({
+                  type: "SESSION_MEMBERS_REQUEST",
+                  payload: { session_id },
+                })
+              }
+            >
+              Atualizar
+            </button>
+          </div>
+          {members.map((member) => (
+            <div
+              key={member.id}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span style={{ flex: 1 }}>
+                {member.nickname} · {member.online ? "online" : "offline"}
+              </span>
+              <select
+                aria-label={`Cargo de ${member.nickname}`}
+                value={member.role}
+                onChange={(event) => {
+                  socket.send({
+                    type: "SESSION_MEMBER_ROLE_SET",
+                    payload: {
+                      user_id: member.id,
+                      role: event.target.value as Role,
+                    },
+                  });
+                  window.setTimeout(
+                    () =>
+                      socket.send({
+                        type: "SESSION_MEMBERS_REQUEST",
+                        payload: { session_id },
+                      }),
+                    500,
+                  );
+                }}
+                style={{
+                  background: "#0f172a",
+                  color: "#f3f4f6",
+                  border: "1px solid #343744",
+                  borderRadius: 4,
+                }}
+              >
+                <option value="gm">GM</option>
+                <option value="player">Player</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button
+                style={styles.leaveBtn}
+                onClick={() => {
+                  if (window.confirm(`Remover ${member.nickname} da sessão?`))
+                    socket.send({
+                      type: "SESSION_MEMBER_REMOVE",
+                      payload: { user_id: member.id },
+                    });
+                }}
+              >
+                Remover
+              </button>
+            </div>
+          ))}
+        </section>
+        <InvitePanel
+          session_id={session_id}
+          invite_codes={invite_codes}
+          socket={socket}
+        />
+        <AssetLibraryPanel assets={assets} error={assetError} socket={socket} />
+      </>
+    ) : null;
   const tokenPanelElement = <TokenPanel role={role} />;
-  const sheetPanelElement = <><SheetPanel sessionId={session_id} role={role} socket={socket} />{tokenPanelElement}</>;
-  const mapPanelElement = role === "gm"
-    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} sceneConfig={sceneConfig} measurementConfig={measurementConfig} socket={socket} />
-    : null;
-  const mapToolsPanelElement = <MapToolsPanel sceneId={current_scene_id} config={measurementConfig} />;
-  const scenePanelElement = <ScenePanel sessionId={session_id} role={role} scenes={scenes} party={party} partySceneId={party_scene_id} currentSceneId={current_scene_id} socket={socket} onConfigure={() => setActiveTab("map")} />;
-  const chatPanelElement = (
-    <ChatPanel chat={chat} socket={socket} maxHeight={detachedTab === "chat" ? "300px" : "200px"} />
+  const sheetPanelElement = (
+    <>
+      <SheetPanel sessionId={session_id} role={role} socket={socket} />
+      {tokenPanelElement}
+    </>
   );
+  const mapPanelElement =
+    role === "gm" ? (
+      <MapPanel
+        session_id={session_id}
+        scene_id={current_scene_id}
+        map={map}
+        sceneConfig={sceneConfig}
+        measurementConfig={measurementConfig}
+        socket={socket}
+      />
+    ) : null;
+  const mapToolsPanelElement = (
+    <MapToolsPanel sceneId={current_scene_id} config={measurementConfig} />
+  );
+  const scenePanelElement = (
+    <ScenePanel
+      sessionId={session_id}
+      role={role}
+      scenes={scenes}
+      party={party}
+      partySceneId={party_scene_id}
+      currentSceneId={current_scene_id}
+      socket={socket}
+      onConfigure={() => setActiveTab("map")}
+    />
+  );
+  const chatPanelElement = (
+  <ChatPanel chat={chat} presence={presence} socket={socket} initialHeight={detachedTab === "chat" ? 300 : 200} />
+);
 
   return (
     <>
-      <div style={{ ...styles.panel, width: collapsed ? "48px" : `${width}px` }}>
+      <div
+        style={{ ...styles.panel, width: collapsed ? "48px" : `${width}px` }}
+      >
         <div style={styles.resizer} onMouseDown={startResize} />
         <div style={styles.header}>
-          <div style={{ display: collapsed ? "none" : "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            style={{
+              display: collapsed ? "none" : "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
             <span style={styles.sessionName}>{sessionName}</span>
-            <span style={{ ...styles.badge, ...(role === "gm" ? styles.badgeGm : styles.badgePlayer) }}>
+            <span
+              style={{
+                ...styles.badge,
+                ...(role === "gm" ? styles.badgeGm : styles.badgePlayer),
+              }}
+            >
               {roleLabel(role)}
             </span>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <button style={styles.leaveBtn} title="Sair da sessão e voltar ao lobby" onClick={() => socket.send({ type: "SESSION_LEAVE", payload: {} })}>{collapsed ? "×" : "Sair da sessão"}</button>
-            <button style={styles.collapseBtn} onClick={() => setCollapsed((s) => !s)}>{collapsed ? "›" : "‹"}</button>
+            <button
+              style={styles.leaveBtn}
+              title="Sair da sessão e voltar ao lobby"
+              onClick={() =>
+                socket.send({ type: "SESSION_LEAVE", payload: {} })
+              }
+            >
+              {collapsed ? "×" : "Sair da sessão"}
+            </button>
+            <button
+              style={styles.collapseBtn}
+              onClick={() => setCollapsed((s) => !s)}
+            >
+              {collapsed ? "›" : "‹"}
+            </button>
           </div>
         </div>
-        <span style={{ ...styles.nickname, display: collapsed ? "none" : undefined }}>{nickname}</span>
+        <span
+          style={{
+            ...styles.nickname,
+            display: collapsed ? "none" : undefined,
+          }}
+        >
+          {nickname}
+        </span>
 
-        <div style={{ ...styles.tabBar, flexDirection: collapsed ? "column" : "row" }}>
+        <div
+          style={{
+            ...styles.tabBar,
+            flexDirection: collapsed ? "column" : "row",
+          }}
+        >
           {role === "gm" && (
-            <div style={{ position: "relative", display: "inline-flex", alignItems: "center", marginRight: 8 }}>
+            <div
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+                marginRight: 8,
+              }}
+            >
               <button
-                style={{ ...styles.tabBtn, ...(activeTab === "session" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
+                style={{
+                  ...styles.tabBtn,
+                  ...(activeTab === "session" ? styles.tabActive : {}),
+                  ...(collapsed ? styles.tabCollapsed : {}),
+                }}
                 onClick={() => setActiveTab("session")}
               >
                 🗂 Sessão
                 <span
-                  onClick={(e) => { e.stopPropagation(); toggleDetach("session", "chat"); }}
-                  style={{ marginLeft: 8, color: "#9ca3af", cursor: "pointer", fontSize: 12 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDetach("session", "chat");
+                  }}
+                  style={{
+                    marginLeft: 8,
+                    color: "#9ca3af",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
                   title="Destacar"
                 >
                   ⤢
@@ -171,45 +395,102 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
               </button>
             </div>
           )}
-          {(role === "gm" || role === "viewer") && <button style={{ ...styles.tabBtn, ...(activeTab === "scenes" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }} onClick={() => setActiveTab("scenes")}>🎬 Cenas</button>}
+          {(role === "gm" || role === "viewer") && (
+            <button
+              style={{
+                ...styles.tabBtn,
+                ...(activeTab === "scenes" ? styles.tabActive : {}),
+                ...(collapsed ? styles.tabCollapsed : {}),
+              }}
+              onClick={() => setActiveTab("scenes")}
+            >
+              🎬 Cenas
+            </button>
+          )}
           <button
-            style={{ ...styles.tabBtn, ...(activeTab === "tools" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === "tools" ? styles.tabActive : {}),
+              ...(collapsed ? styles.tabCollapsed : {}),
+            }}
             onClick={() => setActiveTab("tools")}
           >
             ✏ Ferramentas
           </button>
           {role === "gm" && (
             <button
-              style={{ ...styles.tabBtn, ...(activeTab === "map" ? styles.tabActive : {}) }}
+              style={{
+                ...styles.tabBtn,
+                ...(activeTab === "map" ? styles.tabActive : {}),
+              }}
               onClick={() => setActiveTab("map")}
             >
               🗺 Mapa da cena
             </button>
           )}
-          {role !== "viewer" && <div style={{ position: "relative", display: "inline-flex", alignItems: "center", marginRight: 8 }}>
-            <button
-              style={{ ...styles.tabBtn, ...(activeTab === "tokens" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
-              onClick={() => setActiveTab("tokens")}
+          {role !== "viewer" && (
+            <div
+              style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+                marginRight: 8,
+              }}
             >
-              📄 Fichas
-              <span
-                onClick={(e) => { e.stopPropagation(); toggleDetach("tokens", role === "gm" ? "session" : "chat"); }}
-                style={{ marginLeft: 8, color: "#9ca3af", cursor: "pointer", fontSize: 12 }}
-                title="Destacar"
+              <button
+                style={{
+                  ...styles.tabBtn,
+                  ...(activeTab === "tokens" ? styles.tabActive : {}),
+                  ...(collapsed ? styles.tabCollapsed : {}),
+                }}
+                onClick={() => setActiveTab("tokens")}
               >
-                ⤢
-              </span>
-            </button>
-          </div>}
-          <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                📄 Fichas
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDetach("tokens", role === "gm" ? "session" : "chat");
+                  }}
+                  style={{
+                    marginLeft: 8,
+                    color: "#9ca3af",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                  title="Destacar"
+                >
+                  ⤢
+                </span>
+              </button>
+            </div>
+          )}
+          <div
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
             <button
-              style={{ ...styles.tabBtn, ...(activeTab === "chat" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
+              style={{
+                ...styles.tabBtn,
+                ...(activeTab === "chat" ? styles.tabActive : {}),
+                ...(collapsed ? styles.tabCollapsed : {}),
+              }}
               onClick={() => setActiveTab("chat")}
             >
               💬 Chat
               <span
-                onClick={(e) => { e.stopPropagation(); toggleDetach("chat", role === "gm" ? "session" : "tokens"); }}
-                style={{ marginLeft: 8, color: "#9ca3af", cursor: "pointer", fontSize: 12 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleDetach("chat", role === "gm" ? "session" : "tokens");
+                }}
+                style={{
+                  marginLeft: 8,
+                  color: "#9ca3af",
+                  cursor: "pointer",
+                  fontSize: 12,
+                }}
                 title="Destacar"
               >
                 ⤢
@@ -218,11 +499,15 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
           </div>
         </div>
 
-        {activeTab === "session" && detachedTab !== "session" && sessionPanelElement}
+        {activeTab === "session" &&
+          detachedTab !== "session" &&
+          sessionPanelElement}
         {activeTab === "scenes" && scenePanelElement}
         {activeTab === "map" && detachedTab !== "map" && mapPanelElement}
         {activeTab === "tools" && mapToolsPanelElement}
-        {activeTab === "tokens" && detachedTab !== "tokens" && sheetPanelElement}
+        {activeTab === "tokens" &&
+          detachedTab !== "tokens" &&
+          sheetPanelElement}
         {activeTab === "chat" && detachedTab !== "chat" && chatPanelElement}
       </div>
 
