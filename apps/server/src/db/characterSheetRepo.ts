@@ -1,5 +1,6 @@
 import db from "./connection.js";
 import { generateId } from "./idGenerators.js";
+import type { CharacterSheet } from "@vtt/protocol";
 
 export type SheetAction = { id: string; label: string; kind: "roll" | "chat" | "map"; expression?: string; text?: string; operation?: "ping" };
 export type SheetTemplate = { html: string; css: string; actions: SheetAction[] };
@@ -21,27 +22,53 @@ export function setSheetTemplate(sessionId: string, template: SheetTemplate) {
     .run(sessionId, template.html, template.css, JSON.stringify(template.actions));
 }
 
-export type CharacterSheet = { id: string; session_id: string; token_id: string; scene_id: string; x: number; y: number; name: string; data: Record<string, string>; owner_user_ids: string[] };
+export type StoredCharacterSheet = CharacterSheet & { session_id: string };
 
-export function getCharacterSheet(id: string): CharacterSheet | undefined {
-  const row = db.prepare(`SELECT cs.*, t.scene_id,t.x,t.y FROM character_sheets cs JOIN tokens t ON t.id=cs.token_id WHERE cs.id=?`).get(id) as (Omit<CharacterSheet, "data" | "owner_user_ids"> & { data_json: string }) | undefined;
+export function getCharacterSheet(id: string): StoredCharacterSheet | undefined {
+  const row = db.prepare("SELECT id,session_id,name,data_json FROM character_sheets WHERE id=?").get(id) as { id: string; session_id: string; name: string; data_json: string } | undefined;
   if (!row) return undefined;
-  const owners = db.prepare("SELECT user_id FROM token_owners WHERE token_id=? ORDER BY user_id").all(row.token_id) as { user_id: string }[];
-  const { data_json, ...sheet } = row;
-  return { ...sheet, data: JSON.parse(data_json) as Record<string, string>, owner_user_ids: owners.map((owner) => owner.user_id) };
+  const owners = db.prepare("SELECT user_id FROM character_sheet_owners WHERE sheet_id=? ORDER BY created_at,user_id").all(row.id) as { user_id: string }[];
+  const tokens = db.prepare(`SELECT t.id AS token_id,t.scene_id,s.name AS scene_name,t.x,t.y FROM tokens t
+    JOIN scenes s ON s.id=t.scene_id WHERE t.sheet_id=? ORDER BY s.sort_order,s.created_at,t.rowid`).all(row.id) as StoredCharacterSheet["tokens"];
+  return { id: row.id, session_id: row.session_id, name: row.name, data: JSON.parse(row.data_json) as Record<string, string>, owner_user_ids: owners.map((owner) => owner.user_id), tokens };
 }
 
-export function getCharacterSheets(sessionId: string): CharacterSheet[] {
-  db.prepare(`INSERT OR IGNORE INTO character_sheets(id,session_id,token_id,name)
-    SELECT 'sheet_' || t.id, s.session_id, t.id, 'Ficha' FROM tokens t JOIN scenes s ON s.id=t.scene_id WHERE s.session_id=?`).run(sessionId);
+export function getCharacterSheets(sessionId: string): StoredCharacterSheet[] {
+  const unattached = db.prepare("SELECT t.id AS token_id,s.session_id FROM tokens t JOIN scenes s ON s.id=t.scene_id WHERE s.session_id=? AND t.sheet_id IS NULL").all(sessionId) as { token_id: string; session_id: string }[];
+  const repair = db.transaction(() => {
+    const addSheet = db.prepare("INSERT INTO character_sheets(id,session_id,name) VALUES(?,?, 'Ficha')");
+    const attach = db.prepare("UPDATE tokens SET sheet_id=? WHERE id=? AND sheet_id IS NULL");
+    for (const row of unattached) { const id = generateId("sheet"); addSheet.run(id, row.session_id); attach.run(id, row.token_id); }
+  });
+  repair();
   const rows = db.prepare("SELECT id FROM character_sheets WHERE session_id=? ORDER BY rowid").all(sessionId) as { id: string }[];
-  return rows.map((row) => getCharacterSheet(row.id)).filter((row): row is CharacterSheet => !!row);
+  return rows.map((row) => getCharacterSheet(row.id)).filter((row): row is StoredCharacterSheet => !!row);
+}
+
+export function createCharacterSheet(sessionId: string, name: string) {
+  const id = generateId("sheet");
+  db.prepare("INSERT INTO character_sheets(id,session_id,name) VALUES(?,?,?)").run(id, sessionId, name);
+  return getCharacterSheet(id)!;
+}
+
+export function setSheetOwners(sheetId: string, userIds: string[]) {
+  const update = db.transaction(() => {
+    db.prepare("DELETE FROM character_sheet_owners WHERE sheet_id=?").run(sheetId);
+    const add = db.prepare("INSERT INTO character_sheet_owners(sheet_id,user_id) VALUES(?,?)");
+    for (const userId of userIds) add.run(sheetId, userId);
+  });
+  update();
+  return getCharacterSheet(sheetId)!;
 }
 
 export function updateCharacterSheet(id: string, name: string, data: Record<string, string>) {
   db.prepare("UPDATE character_sheets SET name=?, data_json=?, updated_at=unixepoch() WHERE id=?").run(name, JSON.stringify(data), id);
 }
 
-export function createSheetForToken(sessionId: string, tokenId: string) {
-  db.prepare("INSERT OR IGNORE INTO character_sheets(id,session_id,token_id,name) VALUES(?,?,?,?)").run(generateId("sheet"), sessionId, tokenId, "Ficha");
+export function deleteCharacterSheet(id: string) {
+  const remove = db.transaction(() => {
+    db.prepare("DELETE FROM tokens WHERE sheet_id=?").run(id);
+    db.prepare("DELETE FROM character_sheets WHERE id=?").run(id);
+  });
+  remove();
 }

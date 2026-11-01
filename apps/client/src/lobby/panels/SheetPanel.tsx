@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CharacterSheet, Role, ServerMessage, SheetTemplate } from "@vtt/protocol";
+import type { CharacterSheet, Member, Role, ServerMessage, SheetTemplate } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
 
 const FALLBACK_TEMPLATE: SheetTemplate = {
@@ -18,6 +18,8 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
   const [css, setCss] = useState(FALLBACK_TEMPLATE.css);
   const [actions, setActions] = useState(JSON.stringify(FALLBACK_TEMPLATE.actions, null, 2));
   const [status, setStatus] = useState("");
+  const [members, setMembers] = useState<Member[]>([]);
+  const [newSheetName, setNewSheetName] = useState("");
   const selected = sheets.find((sheet) => sheet.id === selectedId) ?? sheets[0];
   const selectedRef = useRef(selected);
   const selectedIdRef = useRef(selectedId);
@@ -40,12 +42,15 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
       const sheet = (event as CustomEvent<Extract<ServerMessage, { type: "SHEET_CHANGED" }>['payload']>).detail.sheet;
       setSheets((rows) => rows.some((row) => row.id === sheet.id) ? rows.map((row) => row.id === sheet.id ? sheet : row) : [...rows, sheet]);
     };
+    const onMembers = (event: Event) => setMembers((event as CustomEvent<Member[]>).detail);
     const onMessage = (event: MessageEvent) => onFrameMessage(event);
     window.addEventListener("vtt-sheets-list", onList); window.addEventListener("vtt-sheet-template", onTemplate); window.addEventListener("vtt-sheet-changed", onChanged);
     window.addEventListener("message", onMessage);
+    window.addEventListener("vtt-session-members", onMembers);
     socket.send({ type: "SHEETS_LIST_REQUEST", payload: {} });
-    return () => { window.removeEventListener("vtt-sheets-list", onList); window.removeEventListener("vtt-sheet-template", onTemplate); window.removeEventListener("vtt-sheet-changed", onChanged); window.removeEventListener("message", onMessage); };
-  }, [sessionId, socket]);
+    if (role === "gm") socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id: sessionId } });
+    return () => { window.removeEventListener("vtt-sheets-list", onList); window.removeEventListener("vtt-sheet-template", onTemplate); window.removeEventListener("vtt-sheet-changed", onChanged); window.removeEventListener("message", onMessage); window.removeEventListener("vtt-session-members", onMembers); };
+  }, [sessionId, role, socket]);
 
   const srcDoc = useMemo(() => {
     const nonce = `sheet-${selectedId ?? "none"}`;
@@ -87,6 +92,12 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
     } catch { setStatus("A lista de ações precisa ser um JSON válido."); }
   }
 
+  function toggleOwner(ownerId: string, checked: boolean) {
+    if (!selected) return;
+    const ownerIds = checked ? [...selected.owner_user_ids, ownerId] : selected.owner_user_ids.filter((id) => id !== ownerId);
+    socket.send({ type: "SHEET_OWNERS_SET", payload: { sheet_id: selected.id, owner_user_ids: ownerIds } });
+  }
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 8, color: "#d1d5db", fontSize: 12 }}>
     <strong style={{ color: "#f3f4f6" }}>Fichas</strong>
     {role === "gm" && <details>
@@ -97,12 +108,18 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
       <label>Ações (JSON): roll, chat ou map/ping<textarea value={actions} onChange={(event) => setActions(event.target.value)} style={editorStyle} /></label>
       <button style={buttonStyle} onClick={saveTemplate}>Salvar modelo</button>{status && <span>{status}</span>}
     </details>}
-    {!sheets.length ? <span style={{ color: "#9ca3af" }}>Nenhuma ficha disponível. Toda ficha fica ligada a um token; o mestre atribui owners na aba de tokens.</span> : <>
-      <select value={selected?.id ?? ""} onChange={(event) => setSelectedId(event.target.value)} style={editorStyle}>
-        {sheets.map((sheet) => <option key={sheet.id} value={sheet.id}>{sheet.name} — cena {sheet.scene_id.slice(-6)}</option>)}
-      </select>
+    {role === "gm" && <div style={{ display: "flex", gap: 5 }}><input value={newSheetName} onChange={(event) => setNewSheetName(event.target.value)} placeholder="Nome da ficha" style={{ ...editorStyle, minHeight: 28 }} /><button style={buttonStyle} onClick={() => { socket.send({ type: "SHEET_CREATE", payload: { name: newSheetName.trim() || "Ficha" } }); setNewSheetName(""); }}>Criar ficha</button></div>}
+    {!sheets.length ? <span style={{ color: "#9ca3af" }}>Nenhuma ficha disponível.</span> : <>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+        {sheets.map((sheet) => <button key={sheet.id} draggable onDragStart={(event) => { event.dataTransfer.setData("application/x-vtt-sheet-id", sheet.id); event.dataTransfer.effectAllowed = "copy"; }} onClick={() => setSelectedId(sheet.id)} style={{ ...buttonStyle, borderColor: selected?.id === sheet.id ? "#38bdf8" : "#343744", cursor: "grab" }} title="Arraste para o mapa para criar um token">{sheet.name} · {sheet.tokens.length}</button>)}
+      </div>
       {selected && <>
         <label>Nome da ficha<input value={selected.name} onChange={(event) => { dirty.current = true; setSheets((rows) => rows.map((sheet) => sheet.id === selected.id ? { ...sheet, name: event.target.value } : sheet)); }} style={editorStyle} /></label>
+        <div style={{ border: "1px solid #343744", borderRadius: 5, padding: 7 }}>
+          <strong>Owners</strong>
+          {role === "gm" ? <div style={{ display: "flex", flexDirection: "column", maxHeight: 100, overflowY: "auto" }}>{members.filter((member) => member.role === "player").map((member) => <label key={member.id}><input type="checkbox" checked={selected.owner_user_ids.includes(member.id)} onChange={(event) => toggleOwner(member.id, event.target.checked)} /> {member.nickname}</label>)}</div> : <div>{selected.owner_user_ids.length ? "Você é owner desta ficha" : ""}</div>}
+          {!!selected.tokens.length && <small style={{ color: "#9ca3af" }}>Tokens em: {[...new Set(selected.tokens.map((token) => token.scene_name))].join(", ")}</small>}
+        </div>
         <iframe ref={frame} key={selected.id} title={`Ficha ${selected.name}`} sandbox="allow-scripts" srcDoc={srcDoc} onLoad={() => frame.current?.contentWindow?.postMessage({ __vttSheet: `sheet-${selected.id}`, type: "init", name: selected.name, data: selected.data }, "*")} style={{ width: "100%", height: 360, background: "#181a22", border: "1px solid #343744", borderRadius: 6 }} />
       </>}
     </>}

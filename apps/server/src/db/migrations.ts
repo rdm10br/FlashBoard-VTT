@@ -219,6 +219,43 @@ const migrations: Migration[] = [
       for (const row of rows) insert.run(`sheet_${row.id}`, row.session_id, row.id, "Ficha");
     },
   },
+  {
+    version: 7,
+    name: "sheets-own-many-scene-token-instances",
+    up(db) {
+      db.exec(`
+        CREATE TEMP TABLE migrated_sheet_owners AS
+          SELECT DISTINCT cs.id AS sheet_id, owner.user_id
+          FROM character_sheets cs JOIN token_owners owner ON owner.token_id = cs.token_id;
+        CREATE TABLE character_sheets_v7 (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          data_json TEXT NOT NULL DEFAULT '{}',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        INSERT INTO character_sheets_v7(id,session_id,name,data_json,updated_at)
+          SELECT id,session_id,name,data_json,updated_at FROM character_sheets;
+        ALTER TABLE tokens ADD COLUMN sheet_id TEXT REFERENCES character_sheets_v7(id) ON DELETE RESTRICT;
+        UPDATE tokens SET sheet_id = (SELECT id FROM character_sheets WHERE character_sheets.token_id = tokens.id);
+        CREATE TABLE character_sheet_owners_v7 (
+          sheet_id TEXT NOT NULL REFERENCES character_sheets_v7(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY(sheet_id,user_id)
+        );
+        INSERT OR IGNORE INTO character_sheet_owners_v7(sheet_id,user_id)
+          SELECT sheet_id,user_id FROM migrated_sheet_owners;
+        DROP TABLE character_sheets;
+        ALTER TABLE character_sheets_v7 RENAME TO character_sheets;
+        ALTER TABLE character_sheet_owners_v7 RENAME TO character_sheet_owners;
+        DROP TABLE migrated_sheet_owners;
+        CREATE INDEX character_sheets_session_idx ON character_sheets(session_id);
+        CREATE INDEX character_sheet_owners_user_idx ON character_sheet_owners(user_id);
+        CREATE INDEX tokens_sheet_id_idx ON tokens(sheet_id);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

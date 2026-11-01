@@ -17,6 +17,7 @@ export type Token = {
   asset_id?: string | null;
   owner_user_id?: string | null;
   owner_user_ids?: string[];
+  sheet_id: string;
 };
 
 export type Scene = {
@@ -29,7 +30,7 @@ export type Scene = {
 export type ScenePartyMember = { user_id: string; nickname: string; role: Role; scene_id: string | null; online: boolean };
 export type SheetAction = { id: string; label: string; kind: "roll" | "chat" | "map"; expression?: string; text?: string; operation?: "ping" };
 export type SheetTemplate = { html: string; css: string; actions: SheetAction[] };
-export type CharacterSheet = { id: string; token_id: string; scene_id: string; x: number; y: number; name: string; data: Record<string, string>; owner_user_ids: string[] };
+export type CharacterSheet = { id: string; name: string; data: Record<string, string>; owner_user_ids: string[]; tokens: { token_id: string; scene_id: string; scene_name: string; x: number; y: number }[] };
 
 export type SessionSummary = {
   id: string;
@@ -160,6 +161,8 @@ export type ClientMessage =
   | { type: "SHEET_TEMPLATE_SET"; payload: SheetTemplate }
   | { type: "SHEET_UPDATE"; payload: { id: string; name: string; data: Record<string, string> } }
   | { type: "SHEET_ACTION"; payload: { sheet_id: string; action_id: string; data: Record<string, string> } }
+  | { type: "SHEET_CREATE"; payload: { name: string } }
+  | { type: "SHEET_OWNERS_SET"; payload: { sheet_id: string; owner_user_ids: string[] } }
   | { type: "SCENE_SWITCH"; payload: { scene_id: string } }
   | { type: "SCENE_PUSH"; payload: { scene_id: string } }
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
@@ -169,7 +172,7 @@ export type ClientMessage =
   | { type: "SCENE_DRAWING_CREATE"; payload: { scene_id: string; kind: SceneDrawingKind; points: number[]; shared: boolean; keep: boolean } }
   | { type: "SCENE_DRAWING_MOVE"; payload: { id: string; points: number[] } }
   | { type: "SCENE_DRAWING_DELETE"; payload: { id: string } }
-  | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string } }
+  | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string; sheet_id?: string } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
   | { type: "TOKEN_DELETE"; payload: { id: string } }
@@ -212,7 +215,7 @@ export type ServerMessage =
   | { type: "SCENE_DRAWING_CREATED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_MOVED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_DELETED"; payload: { scene_id: string; drawing_id: string } }
-  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null; owner_user_id?: string | null; owner_user_ids?: string[] } }
+  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null; owner_user_id?: string | null; owner_user_ids?: string[]; sheet_id: string } }
   | { type: "TOKEN_OWNERS_CHANGED"; payload: { scene_id: string; tokens: { token_id: string; owner_user_ids: string[] }[] } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string | null } }

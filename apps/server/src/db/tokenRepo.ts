@@ -1,32 +1,35 @@
 import db from "./connection.js";
 import { generateId } from "./idGenerators.js";
 
-export function createToken(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
+export function createToken(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string, sheetId?: string) {
   const id = generateId("token");
   const create = db.transaction(() => {
-    db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y, ownerUserId ?? null);
-    if (ownerUserId) db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)").run(id, ownerUserId);
     const scene = db.prepare("SELECT session_id FROM scenes WHERE id = ?").get(sceneId) as { session_id: string } | undefined;
-    if (scene) db.prepare("INSERT INTO character_sheets(id, session_id, token_id, name) VALUES (?, ?, ?, ?)").run(generateId("sheet"), scene.session_id, id, "Ficha");
+    if (!scene) throw new Error("Scene not found");
+    const actualSheetId = sheetId ?? generateId("sheet");
+    if (!sheetId) db.prepare("INSERT INTO character_sheets(id, session_id, name) VALUES (?, ?, ?)").run(actualSheetId, scene.session_id, "Ficha");
+    const inheritedAsset = sheetId ? (db.prepare("SELECT asset_id FROM tokens WHERE sheet_id=? AND asset_id IS NOT NULL ORDER BY rowid LIMIT 1").get(actualSheetId) as { asset_id: string } | undefined)?.asset_id : undefined;
+    db.prepare("INSERT INTO tokens (id, scene_id, asset_id, owner_user_id, x, y, sheet_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? inheritedAsset ?? null, ownerUserId ?? null, x, y, actualSheetId);
+    if (ownerUserId) db.prepare("INSERT OR IGNORE INTO character_sheet_owners(sheet_id, user_id) VALUES (?, ?)").run(actualSheetId, ownerUserId);
   });
   create();
   return getToken(id)!;
 }
 
 function withOwners<T extends { id: string }>(token: T) {
-  const owner_user_ids = (db.prepare("SELECT user_id FROM token_owners WHERE token_id = ? ORDER BY created_at, user_id").all(token.id) as { user_id: string }[]).map((r) => r.user_id);
+  const owner_user_ids = (db.prepare("SELECT o.user_id FROM character_sheet_owners o JOIN tokens t ON t.sheet_id=o.sheet_id WHERE t.id = ? ORDER BY o.created_at, o.user_id").all(token.id) as { user_id: string }[]).map((r) => r.user_id);
   return { ...token, owner_user_ids };
 }
 
 export function setTokenOwners(tokenIds: string[], userIds: string[]) {
+  if (!tokenIds.length) return [];
   const update = db.transaction(() => {
-    const remove = db.prepare("DELETE FROM token_owners WHERE token_id = ?");
-    const add = db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)");
-    const legacy = db.prepare("UPDATE tokens SET owner_user_id = ? WHERE id = ?");
-    for (const tokenId of tokenIds) {
-      remove.run(tokenId);
-      for (const userId of userIds) add.run(tokenId, userId);
-      legacy.run(userIds.length === 1 ? userIds[0] : null, tokenId);
+    const sheetIds = db.prepare(`SELECT DISTINCT sheet_id FROM tokens WHERE id IN (${tokenIds.map(() => "?").join(",")})`).all(...tokenIds) as { sheet_id: string }[];
+    const remove = db.prepare("DELETE FROM character_sheet_owners WHERE sheet_id = ?");
+    const add = db.prepare("INSERT INTO character_sheet_owners(sheet_id, user_id) VALUES (?, ?)");
+    for (const { sheet_id } of sheetIds) {
+      remove.run(sheet_id);
+      for (const userId of userIds) add.run(sheet_id, userId);
     }
   });
   update();
@@ -35,7 +38,7 @@ export function setTokenOwners(tokenIds: string[], userIds: string[]) {
 
 export function getToken(id: string) {
   const token = db.prepare("SELECT * FROM tokens WHERE id = ?").get(id) as
-  | { id: string; scene_id: string; asset_id: string | null; x: number; y: number; owner_user_id: string | null }
+  | { id: string; scene_id: string; asset_id: string | null; x: number; y: number; owner_user_id: string | null; sheet_id: string }
     | undefined;
   return token ? withOwners(token) : undefined;
 }
@@ -44,7 +47,7 @@ export function getTokensForScene(sceneId: string) {
   const tokens = db.prepare(
     // "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
     "SELECT * FROM tokens WHERE scene_id = ? ORDER BY rowid"
-  ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; owner_user_id: string | null; created_at: number }[];
+  ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; owner_user_id: string | null; sheet_id: string; created_at: number }[];
   return tokens.map(withOwners);
 }
 

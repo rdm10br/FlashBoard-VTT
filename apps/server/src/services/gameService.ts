@@ -76,8 +76,8 @@ export function canEnterScene(sceneId: string, session_id: string, role: Role) {
   return scene;
 }
 
-export function createTokenOnScene(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
-  return createToken(sceneId, x, y, assetId, ownerUserId);
+export function createTokenOnScene(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string, sheetId?: string) {
+  return createToken(sceneId, x, y, assetId, ownerUserId, sheetId);
 }
 
 export function moveTokenOnScene(id: string, x: number, y: number) {

@@ -1,6 +1,6 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getAsset, getMembersForSession, getScene, getSession, getToken, setTokenOwners } from "../db/index.js";
+import { getAsset, getCharacterSheet, getMembersForSession, getScene, getSession, getToken, setTokenOwners } from "../db/index.js";
 import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken, deleteTokenOnScene } from "../services/gameService.js";
 import { broadcastToScene, send } from "../ws/broadcast.js";
 import { LIMITS } from "@vtt/protocol";
@@ -15,7 +15,7 @@ function isTokenImageFromCurrentSession(assetId: string | undefined, sessionId: 
 const inBounds = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= LIMITS.coordinate;
 
-function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: number; asset_id?: string }, ctx: HandlerContext) {
+function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: number; asset_id?: string; sheet_id?: string }, ctx: HandlerContext) {
   const { state, ws } = ctx;
   if (state.role === "viewer") return;
   if (!payload || typeof payload.scene_id !== "string" || !inBounds(payload.x) || !inBounds(payload.y)) return;
@@ -30,11 +30,20 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
     send(ws, { type: "SESSION_ERROR", payload: { message: "Imagem de token inválida para esta sessão." } });
     return;
   }
-  const ownerUserId = state.role === "player" ? state.user_id ?? undefined : undefined;
-  const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId, ownerUserId);
+  let sheetId = payload.sheet_id;
+  let ownerUserId: string | undefined;
+  if (sheetId) {
+    const sheet = getCharacterSheet(sheetId);
+    if (!sheet || sheet.session_id !== state.session_id || (state.role !== "gm" && (!state.user_id || !sheet.owner_user_ids.includes(state.user_id)))) {
+      send(ws, { type: "SESSION_ERROR", payload: { message: "Você não tem permissão para criar tokens desta ficha." } }); return;
+    }
+  } else {
+    ownerUserId = state.role === "player" ? state.user_id ?? undefined : undefined;
+  }
+  const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId, ownerUserId, sheetId);
   broadcastToScene(payload.scene_id, {
     type: "TOKEN_CREATE",
-    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id, owner_user_ids: token.owner_user_ids },
+    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id, owner_user_ids: token.owner_user_ids, sheet_id: token.sheet_id },
   });
   refreshAccessibleSheetLists(state.session_id!);
 }

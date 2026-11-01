@@ -115,6 +115,8 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SCENE_REORDER": valid = isRecord(payload) && Array.isArray(payload.scene_ids) && payload.scene_ids.length <= 200 && payload.scene_ids.every((id) => isString(id, 256)); break;
     case "SCENE_ASSIGN_PLAYERS": valid = isRecord(payload) && hasString(payload, "scene_id", 256) && Array.isArray(payload.user_ids) && payload.user_ids.length <= 200 && payload.user_ids.every((id) => isString(id, 256)); break;
     case "SHEETS_LIST_REQUEST": valid = isRecord(payload); break;
+    case "SHEET_CREATE": valid = isRecord(payload) && hasString(payload, "name", LIMITS.name); break;
+    case "SHEET_OWNERS_SET": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && Array.isArray(payload.owner_user_ids) && payload.owner_user_ids.length <= 100 && payload.owner_user_ids.every((id) => isString(id, 256)); break;
     case "SHEET_TEMPLATE_SET": valid = isSheetTemplate(payload); break;
     case "SHEET_UPDATE": valid = isRecord(payload) && hasString(payload, "id", 256) && hasString(payload, "name", LIMITS.name) && isSheetData(payload.data); break;
     case "SHEET_ACTION": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && hasString(payload, "action_id", 80) && isSheetData(payload.data); break;
@@ -151,7 +153,7 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
       break;
     case "TOKEN_CREATE_REQUEST":
       valid = isRecord(payload) && hasString(payload, "scene_id", 256) && isCoordinate(payload.x) && isCoordinate(payload.y) &&
-        hasOptionalString(payload, "asset_id", 256);
+        hasOptionalString(payload, "asset_id", 256) && hasOptionalString(payload, "sheet_id", 256);
       break;
     case "TOKEN_MOVE":
       valid = isRecord(payload) && hasString(payload, "id", 256) && isCoordinate(payload.x) && isCoordinate(payload.y);

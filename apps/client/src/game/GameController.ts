@@ -36,6 +36,7 @@ export class GameController {
   private draft: { kind: SceneDrawingKind; points: number[]; graphic: PIXI.Graphics } | null = null;
   private drawingDrag: { id: string; pointer: { x: number; y: number }; points: number[] } | null = null;
   private tokenOwners = new Map<string, string[]>();
+  private tokenSheets = new Map<string, string>();
   private selectedTokenIds = new Set<string>();
   private mapPings = new Set<PIXI.Container>();
   private selectionBox: { x: number; y: number; currentX: number; currentY: number } | null = null;
@@ -56,6 +57,22 @@ export class GameController {
     await this.pixiApp.init();
 
     this.camera = new Camera(this.pixiApp.app.canvas, this.pixiApp.camera);
+    const canvas = this.pixiApp.app.canvas;
+    canvas.addEventListener("dragover", (event) => {
+      if (event.dataTransfer?.types.includes("application/x-vtt-sheet-id")) event.preventDefault();
+    });
+    canvas.addEventListener("drop", (event) => {
+      const sheetId = event.dataTransfer?.getData("application/x-vtt-sheet-id");
+      if (!sheetId || !this.currentSceneId || !this.canCreateTokens) return;
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const point = this.pixiApp.camera.toLocal(new PIXI.Point(event.clientX - rect.left, event.clientY - rect.top));
+      let { x, y } = { x: point.x - 25, y: point.y - 25 };
+      if (!event.altKey) ({ x, y } = this.grid.snapPoint(x, y));
+      x = Math.max(0, Math.min(this.sceneWidth - 50, x));
+      y = Math.max(0, Math.min(this.sceneHeight - 50, y));
+      this.socket.send({ type: "TOKEN_CREATE_REQUEST", payload: { scene_id: this.currentSceneId, x, y, sheet_id: sheetId } });
+    });
     this.drawingLayer = this.pixiApp.layers.drawings;
     this.selectionGraphics = new PIXI.Graphics();
     this.selectionGraphics.eventMode = "none";
@@ -492,6 +509,7 @@ export class GameController {
     this.tokens.clear();
     this.highlights.clear();
     this.tokenOwners.clear();
+    this.tokenSheets.clear();
     this.selectedTokenIds.clear();
     this.selection.selectedToken = null;
     this.selection.isDragging = false;
@@ -539,6 +557,7 @@ export class GameController {
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
         this.tokenOwners.set(t.id, t.owner_user_ids ?? (t.owner_user_id ? [t.owner_user_id] : []));
+        this.tokenSheets.set(t.id, t.sheet_id);
         this.registerToken(token);
         if (t.asset_id) void this.tokens.setImage(t.id, assetUrl(t.asset_id));
       }
@@ -604,6 +623,7 @@ export class GameController {
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
       this.tokenOwners.set(data.payload.id, data.payload.owner_user_ids ?? (data.payload.owner_user_id ? [data.payload.owner_user_id] : []));
+      this.tokenSheets.set(data.payload.id, data.payload.sheet_id);
       this.registerToken(token);
       if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
       return;
@@ -637,6 +657,7 @@ export class GameController {
       }
       this.tokens.remove(data.payload.id);
       this.tokenOwners.delete(data.payload.id);
+      this.tokenSheets.delete(data.payload.id);
       this.selectedTokenIds.delete(data.payload.id);
       return;
     }

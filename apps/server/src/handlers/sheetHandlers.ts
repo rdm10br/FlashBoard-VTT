@@ -1,7 +1,7 @@
 import type { ClientMessage, SheetAction, SheetTemplate } from "@vtt/protocol";
 import { LIMITS } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getCharacterSheet, getCharacterSheets, getSheetTemplate, getToken, setSheetTemplate, updateCharacterSheet } from "../db/index.js";
+import { createCharacterSheet, getCharacterSheet, getCharacterSheets, getMembersForSession, getSheetTemplate, setSheetOwners, setSheetTemplate, updateCharacterSheet } from "../db/index.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendToSessionMembers } from "../ws/broadcast.js";
 import { handleChatCommand } from "../services/chatService.js";
@@ -37,6 +37,32 @@ export function refreshAccessibleSheetLists(sessionId: string) {
 }
 
 function handleSheetsList(_payload: {}, ctx: HandlerContext) { sendSheetList(ctx); }
+
+function handleSheetCreate(payload: { name: string }, ctx: HandlerContext) {
+  if (ctx.state.role !== "gm") { send(ctx.ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode criar fichas." } }); return; }
+  const sheet = createCharacterSheet(ctx.state.session_id!, payload.name.trim().slice(0, LIMITS.name) || "Ficha");
+  send(ctx.ws, { type: "SHEET_CHANGED", payload: { sheet } });
+  refreshAccessibleSheetLists(ctx.state.session_id!);
+}
+
+function handleSheetOwnersSet(payload: { sheet_id: string; owner_user_ids: string[] }, ctx: HandlerContext) {
+  if (ctx.state.role !== "gm") { send(ctx.ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode alterar os owners da ficha." } }); return; }
+  const sheet = getCharacterSheet(payload.sheet_id);
+  if (!sheet || sheet.session_id !== ctx.state.session_id) return;
+  const owners = [...new Set(payload.owner_user_ids)];
+  const members = getMembersForSession(ctx.state.session_id!);
+  if (owners.some((id) => !members.some((member) => member.id === id && member.role === "player"))) {
+    send(ctx.ws, { type: "SESSION_ERROR", payload: { message: "Owners devem ser jogadores desta sessão." } }); return;
+  }
+  const updated = setSheetOwners(sheet.id, owners);
+  const byScene = new Map<string, string[]>();
+  for (const token of updated.tokens) byScene.set(token.scene_id, [...(byScene.get(token.scene_id) ?? []), token.token_id]);
+  for (const [sceneId, tokenIds] of byScene) {
+    const tokens = tokenIds.map((token_id) => ({ token_id, owner_user_ids: owners }));
+    broadcastToScene(sceneId, { type: "TOKEN_OWNERS_CHANGED", payload: { scene_id: sceneId, tokens } });
+  }
+  refreshAccessibleSheetLists(ctx.state.session_id!);
+}
 
 function handleTemplateSet(payload: SheetTemplate, ctx: HandlerContext) {
   if (ctx.state.role !== "gm") { send(ctx.ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode editar o modelo das fichas." } }); return; }
@@ -101,13 +127,15 @@ function handleSheetAction(payload: { sheet_id: string; action_id: string; data:
     return;
   }
   if (action.kind === "map" && action.operation === "ping") {
-    const token = getToken(sheet.token_id);
-    if (token) broadcastToScene(sheet.scene_id, { type: "MAP_PING", payload: { scene_id: sheet.scene_id, x: token.x, y: token.y, label: action.label, nickname: ctx.state.nickname } });
+    const token = sheet.tokens.find((item) => item.scene_id === ctx.state.scene_id) ?? sheet.tokens[0];
+    if (token) broadcastToScene(token.scene_id, { type: "MAP_PING", payload: { scene_id: token.scene_id, x: token.x, y: token.y, label: action.label, nickname: ctx.state.nickname } });
   }
 }
 
 export const sheetHandlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   SHEETS_LIST_REQUEST: handleSheetsList,
+  SHEET_CREATE: handleSheetCreate,
+  SHEET_OWNERS_SET: handleSheetOwnersSet,
   SHEET_TEMPLATE_SET: handleTemplateSet,
   SHEET_UPDATE: handleSheetUpdate,
   SHEET_ACTION: handleSheetAction,

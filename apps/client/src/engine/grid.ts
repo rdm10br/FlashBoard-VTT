@@ -77,15 +77,36 @@ export class Grid {
       for (let x = 0; x <= width; x += s) g.moveTo(x, 0).lineTo(x, height);
       for (let y = 0; y <= height; y += s) g.moveTo(0, y).lineTo(width, y);
     } else if (grid_type !== "none") {
-      const rows = Math.ceil(height / s) + 2, cols = Math.ceil(width / s) + 2;
-      for (let r = -2; r < rows + cols; r++) {
-        for (let q = -rows - 2; q < cols + rows; q++) {
+      const R = this.R;
+      const min = (value: number) => Math.floor(value) - 1;
+      const max = (value: number) => Math.ceil(value) + 1;
+      if (grid_type === "hex_flat") {
+        const qMin = min((-2 * R) / (1.5 * R));
+        const qMax = max(width / (1.5 * R));
+        for (let q = qMin; q <= qMax; q++) {
+          const rMin = min((-R - s / 2) / s - q / 2);
+          const rMax = max((height + R - s / 2) / s - q / 2);
+          for (let r = rMin; r <= rMax; r++) {
+            const c = this.hexCenter(q, r);
+            const pts = this.hexCorners(c);
+            g.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < 6; i++) g.lineTo(pts[i].x, pts[i].y);
+            g.closePath();
+          }
+        }
+      } else {
+        const rMin = min((-s / 2 - R) / (1.5 * R));
+        const rMax = max((height + s / 2 - R) / (1.5 * R));
+        for (let r = rMin; r <= rMax; r++) {
+          const qMin = min((-R - s / 2) / s - r / 2);
+          const qMax = max((width + R - s / 2) / s - r / 2);
+          for (let q = qMin; q <= qMax; q++) {
           const c = this.hexCenter(q, r);
-          if (c.x < -s || c.y < -s || c.x > width + s || c.y > height + s) continue;
           const pts = this.hexCorners(c);
           g.moveTo(pts[0].x, pts[0].y);
           for (let i = 1; i < 6; i++) g.lineTo(pts[i].x, pts[i].y);
           g.closePath();
+          }
         }
       }
     }

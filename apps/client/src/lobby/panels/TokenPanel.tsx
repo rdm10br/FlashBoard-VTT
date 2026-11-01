@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Member, Role, ServerMessage } from "@vtt/protocol";
+import type { Role, ServerMessage } from "@vtt/protocol";
 import { ASSET_UPLOAD_URL } from "../../network/apiBase";
 import { SocketManager } from "../../network/socket";
 
@@ -17,23 +17,6 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
   const pendingAction = useRef<UploadAction | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([]);
-  const [ownerIds, setOwnerIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    const onMembers = (event: Event) => setMembers((event as CustomEvent<Member[]>).detail);
-    const onSelection = (event: Event) => {
-      const detail = (event as CustomEvent<{ tokenIds: string[]; ownerUserIds: string[] }>).detail;
-      setSelectedTokenIds(detail.tokenIds);
-      setOwnerIds(detail.ownerUserIds);
-    };
-    window.addEventListener("vtt-session-members", onMembers);
-    window.addEventListener("vtt-token-selection", onSelection);
-    if (role === "gm") socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } });
-    return () => { window.removeEventListener("vtt-session-members", onMembers); window.removeEventListener("vtt-token-selection", onSelection); };
-  }, [role, session_id, socket]);
-
   useEffect(() => {
     socket.setAssetUploadHandler("token_image", (data: ServerMessage) => {
       if (data.type !== "BACKUP_GRANT_ISSUED" || data.payload.kind !== "asset_upload") return;
@@ -139,16 +122,6 @@ export function TokenPanel({ role, session_id, default_token_asset_id, socket }:
               )}
             </div>
           )}
-          {role === "gm" && <div style={{ borderTop: "1px solid #2e303a", paddingTop: 8 }}>
-            <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 5 }}>Owners dos tokens selecionados ({selectedTokenIds.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 110, overflowY: "auto" }}>
-              {members.filter((member) => member.role === "player").map((member) => <label key={member.id} style={{ color: "#cbd5e1", fontSize: 12 }}>
-                <input type="checkbox" checked={ownerIds.includes(member.id)} onChange={(event) => setOwnerIds((current) => event.target.checked ? [...current, member.id] : current.filter((id) => id !== member.id))} /> {member.nickname}
-              </label>)}
-            </div>
-            <button style={styles.copyBtn} disabled={!selectedTokenIds.length} onClick={() => socket.send({ type: "TOKEN_OWNERS_SET", payload: { token_ids: selectedTokenIds, owner_user_ids: ownerIds } })}>Aplicar owners aos selecionados</button>
-            <button style={styles.copyBtn} onClick={() => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } })}>Atualizar jogadores</button>
-          </div>}
           {status && <div style={{ color: "#9ca3af", fontSize: "12px" }}>{status}</div>}
         </div>
       )}
