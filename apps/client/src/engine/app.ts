@@ -2,10 +2,12 @@ import * as PIXI from "pixi.js";
 
 export class App {
   app: PIXI.Application;
+  camera: PIXI.Container;
   layers: Record<string, PIXI.Container>;
 
   constructor() {
     this.app = new PIXI.Application();
+    this.camera = new PIXI.Container();
     this.layers = {};
   }
 
@@ -24,9 +26,9 @@ export class App {
     this.layers.tokens = new PIXI.Container();
     this.layers.ui = new PIXI.Container();
 
-    Object.values(this.layers).forEach(layer =>
-      this.app.stage.addChild(layer)
-    );
+    this.app.stage.addChild(this.camera);
+    this.camera.addChild(this.layers.background, this.layers.grid, this.layers.tokens);
+    this.app.stage.addChild(this.layers.ui);
 
     this.app.stage.eventMode = "static";
     this.app.stage.hitArea = this.app.screen;

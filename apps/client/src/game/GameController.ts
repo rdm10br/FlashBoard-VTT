@@ -7,6 +7,7 @@ import { SceneMapLayer } from "../engine/sceneMapLayer";
 import { SocketManager } from "../network/socket";
 import { registerTokenInteractions, type SelectionState } from "./tokenInteractions";
 import { assetUrl } from "../network/apiBase";
+import { Camera } from "../engine/camera";
 
 // Orquestra o canvas Pixi (grid + tokens) e traduz mensagens do servidor
 // em mudanças visuais. É a única peça que fala tanto com o Pixi quanto com o socket.
@@ -15,6 +16,7 @@ export class GameController {
   private grid!: Grid;
   private tokens!: TokenManager;
   private maps!: SceneMapLayer;
+  private camera!: Camera;
   private socket: SocketManager;
 
   private currentSceneId: string | null = null;
@@ -35,6 +37,7 @@ export class GameController {
   async init() {
     await this.pixiApp.init();
 
+    this.camera = new Camera(this.pixiApp.app.canvas, this.pixiApp.camera);
     this.grid = new Grid(this.pixiApp.layers.grid);
     this.tokens = new TokenManager(this.pixiApp.layers.tokens);
     this.maps = new SceneMapLayer(
@@ -49,6 +52,7 @@ export class GameController {
 
     window.addEventListener("resize", () => {
       this.pixiApp.resize();
+      this.camera.resize();
     });
 
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
@@ -155,6 +159,7 @@ export class GameController {
 
     if (data.type === "SCENE_STATE") {
       this.currentSceneId = data.payload.scene_id;
+      this.camera.setScene(data.payload.config.width, data.payload.config.height);
       this.grid.setConfig(data.payload.config);
       void this.maps.setMap(data.payload.map, (assetId) => assetUrl(assetId));
       this.clearTokens();
@@ -174,6 +179,7 @@ export class GameController {
 
     if (data.type === "SCENE_CONFIG_CHANGED") {
       if (data.payload.scene_id !== this.currentSceneId) return;
+      this.camera.setSceneBounds(data.payload.config.width, data.payload.config.height);
       this.grid.setConfig(data.payload.config);
       return;
     }
