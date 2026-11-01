@@ -1,6 +1,6 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getAsset, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
+import { getAsset, getMembersForSession, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
 import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
 import {
@@ -126,4 +126,8 @@ export const sessionHandlers: Partial<Record<ClientMessage["type"], MessageHandl
   SESSION_JOIN: handleSessionJoin,
   SESSION_ENTER: handleSessionEnter,
   SESSION_SET_DEFAULT_TOKEN_ASSET: handleSessionSetDefaultTokenAsset,
+  SESSION_MEMBERS_REQUEST: (payload: { session_id: string }, { state, ws }) => {
+    if (payload.session_id !== state.session_id) return;
+    send(ws, { type: "SESSION_MEMBERS", payload: { session_id: payload.session_id, members: getMembersForSession(payload.session_id).map(({ id, nickname, role }) => ({ id, nickname, role })) } });
+  },
 };

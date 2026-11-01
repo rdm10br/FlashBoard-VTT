@@ -97,6 +97,9 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SESSION_SET_DEFAULT_TOKEN_ASSET":
       valid = isRecord(payload) && (payload.asset_id === null || hasString(payload, "asset_id", 256));
       break;
+    case "SESSION_MEMBERS_REQUEST":
+      valid = isRecord(payload) && hasString(payload, "session_id", 256);
+      break;
     case "INVITE_CREATE":
       valid = isInvitePayload(payload);
       break;
@@ -149,6 +152,9 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
       break;
     case "TOKEN_DELETE":
       valid = isRecord(payload) && hasString(payload, "id", 256);
+      break;
+    case "TOKEN_OWNERS_SET":
+      valid = isRecord(payload) && Array.isArray(payload.token_ids) && payload.token_ids.length > 0 && payload.token_ids.length <= 100 && payload.token_ids.every((id) => isString(id, 256)) && Array.isArray(payload.owner_user_ids) && payload.owner_user_ids.length <= 100 && payload.owner_user_ids.every((id) => isString(id, 256));
       break;
     case "ASSET_UPLOAD_GRANT_REQUEST":
       valid = isRecord(payload) && hasString(payload, "session_id", 256) &&

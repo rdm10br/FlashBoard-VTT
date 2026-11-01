@@ -14,14 +14,16 @@ type TokenInteractionDeps = {
   getTokenId: (token: PIXI.Container) => string | undefined;
   onMoveCommitted: (id: string, x: number, y: number) => void;
   canInteract?: (token: PIXI.Container) => boolean;
-  onTokenSelected?: (token: PIXI.Container) => void;
+  onTokenSelected?: (token: PIXI.Container, event: PIXI.FederatedPointerEvent) => "toggle" | "select" | "keep" | void;
+  getSelectedTokens?: () => PIXI.Container[];
 };
 
 // Registra os handlers de seleção/drag de um token individual.
 // Toda a coordenação entre tokens (qual está selecionado, offset do drag)
 // vive no objeto `selection`, compartilhado por referência com o GameController.
 export function registerTokenInteractions(token: PIXI.Container, deps: TokenInteractionDeps) {
-  const { grid, highlights, selection, getTokenId, onMoveCommitted, canInteract, onTokenSelected } = deps;
+  const { grid, highlights, selection, getTokenId, onMoveCommitted, canInteract, onTokenSelected, getSelectedTokens } = deps;
+  let group: { pointer: { x: number; y: number }; origins: { token: PIXI.Container; x: number; y: number }[] } | null = null;
 
   token.cursor = "pointer";
   token.eventMode = "static";
@@ -32,7 +34,20 @@ export function registerTokenInteractions(token: PIXI.Container, deps: TokenInte
       event.stopPropagation();
       return;
     }
-    onTokenSelected?.(token);
+    const wasSelected = getSelectedTokens?.().includes(token) ?? false;
+    const action = onTokenSelected?.(token, event);
+    if (action === "toggle") { event.stopPropagation(); return; }
+    const selected = getSelectedTokens?.() ?? [token];
+    if ((action === "keep" || wasSelected) && selected.length > 1) {
+      const parent = token.parent;
+      if (!parent) return;
+      const pointer = event.getLocalPosition(parent);
+      group = { pointer: { x: pointer.x, y: pointer.y }, origins: selected.map((item) => ({ token: item, x: item.x, y: item.y })) };
+      selection.isDragging = false;
+      selection.selectedToken = null;
+      event.stopPropagation();
+      return;
+    }
     if (selection.selectedToken) {
       const prev = highlights.get(selection.selectedToken);
       if (prev) prev.visible = false;
@@ -65,6 +80,29 @@ export function registerTokenInteractions(token: PIXI.Container, deps: TokenInte
       onMoveCommitted(id, selection.selectedToken.x, selection.selectedToken.y);
     }
   };
+
+  token.on("globalpointermove", (event: PIXI.FederatedPointerEvent) => {
+    if (!group) return;
+    const parent = token.parent;
+    if (!parent) return;
+    const pointer = event.getLocalPosition(parent);
+    const dx = pointer.x - group.pointer.x, dy = pointer.y - group.pointer.y;
+    for (const origin of group.origins) { origin.token.x = origin.x + dx; origin.token.y = origin.y + dy; }
+  });
+
+  const stopGroup = (event: PIXI.FederatedPointerEvent) => {
+    if (!group) return;
+    const moving = group.origins;
+    group = null;
+    for (const { token: item } of moving) {
+      if (!event.altKey) {
+        const snapped = grid.snapPoint(item.x, item.y); item.x = snapped.x; item.y = snapped.y;
+      }
+      const id = getTokenId(item); if (id) onMoveCommitted(id, item.x, item.y);
+    }
+  };
+  token.on("pointerup", stopGroup);
+  token.on("pointerupoutside", stopGroup);
 
   token.on("pointerup", stopDrag);
   token.on("pointerupoutside", stopDrag);

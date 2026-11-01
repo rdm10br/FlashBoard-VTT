@@ -1,6 +1,6 @@
 import type { ClientMessage } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { getAsset, getScene, getSession, getToken } from "../db/index.js";
+import { getAsset, getMembersForSession, getScene, getSession, getToken, setTokenOwners } from "../db/index.js";
 import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken, deleteTokenOnScene } from "../services/gameService.js";
 import { broadcastToScene, send } from "../ws/broadcast.js";
 import { LIMITS } from "@vtt/protocol";
@@ -29,18 +29,33 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
     send(ws, { type: "SESSION_ERROR", payload: { message: "Imagem de token inválida para esta sessão." } });
     return;
   }
-  const ownerUserId = state.user_id ?? undefined;
+  const ownerUserId = state.role === "player" ? state.user_id ?? undefined : undefined;
   const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId, ownerUserId);
   broadcastToScene(payload.scene_id, {
     type: "TOKEN_CREATE",
-    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id },
+    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id, owner_user_ids: token.owner_user_ids },
   });
 }
 
 /** GM pode agir em qualquer token; player só no próprio. */
-function canActOnToken(token: { owner_user_id: string | null }, state: HandlerContext["state"]): boolean {
+function canActOnToken(token: { owner_user_ids?: string[]; owner_user_id: string | null }, state: HandlerContext["state"]): boolean {
   if (state.role === "gm") return true;
-  return token.owner_user_id !== null && token.owner_user_id === state.user_id;
+  return token.owner_user_ids?.includes(state.user_id ?? "") ?? token.owner_user_id === state.user_id;
+}
+
+function handleTokenOwnersSet(payload: { token_ids: string[]; owner_user_ids: string[] }, ctx: HandlerContext) {
+  const { state, ws } = ctx;
+  if (state.role !== "gm") { send(ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode alterar os owners." } }); return; }
+  const members = getMembersForSession(state.session_id!);
+  if (payload.owner_user_ids.some((id) => !members.some((m) => m.id === id && m.role === "player"))) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Owners devem ser jogadores desta sessão." } }); return;
+  }
+  const tokens = payload.token_ids.map(getToken);
+  if (tokens.some((t) => !t || t.scene_id !== state.scene_id || getScene(t.scene_id)?.session_id !== state.session_id)) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Seleção contém token de outra cena ou sessão." } }); return;
+  }
+  const changed = setTokenOwners(payload.token_ids, [...new Set(payload.owner_user_ids)]);
+  broadcastToScene(state.scene_id!, { type: "TOKEN_OWNERS_CHANGED", payload: { scene_id: state.scene_id!, tokens: changed } });
 }
 
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
@@ -72,6 +87,7 @@ export const tokenHandlers: Partial<Record<ClientMessage["type"], MessageHandler
   TOKEN_MOVE: handleTokenMove,
   TOKEN_SET_ASSET: handleTokenSetAsset,
   TOKEN_DELETE: handleTokenDelete,
+  TOKEN_OWNERS_SET: handleTokenOwnersSet,
 };
 
 function handleTokenSetAsset(payload: { id: string; asset_id: string }, ctx: HandlerContext) {

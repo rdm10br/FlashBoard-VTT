@@ -163,6 +163,23 @@ const migrations: Migration[] = [
       db.exec("ALTER TABLE scenes ADD COLUMN measurement_snap_to_cell_centers INTEGER NOT NULL DEFAULT 0;");
     },
   },
+  {
+    version: 4,
+    name: "multiple-token-owners",
+    up(db) {
+      db.exec(`
+        CREATE TABLE token_owners (
+          token_id TEXT NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+          PRIMARY KEY (token_id, user_id)
+        );
+        CREATE INDEX token_owners_user_id_idx ON token_owners(user_id);
+        INSERT OR IGNORE INTO token_owners(token_id, user_id)
+          SELECT id, owner_user_id FROM tokens WHERE owner_user_id IS NOT NULL;
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

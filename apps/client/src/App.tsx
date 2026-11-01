@@ -204,6 +204,13 @@ export function App({ socket, onSessionJoined }: AppProps) {
         return;
       }
 
+      if (data.type === "SESSION_MEMBERS") {
+        if (sessionRef.current?.session_id === data.payload.session_id) {
+          window.dispatchEvent(new CustomEvent("vtt-session-members", { detail: data.payload.members }));
+        }
+        return;
+      }
+
       if (data.type === "SCENE_STATE") {
         setCurrentSceneId(data.payload.scene_id);
         setSceneMap(data.payload.map);

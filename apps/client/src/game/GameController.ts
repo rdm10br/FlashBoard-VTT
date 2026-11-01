@@ -35,7 +35,7 @@ export class GameController {
   private selectedDrawingId: string | null = null;
   private draft: { kind: SceneDrawingKind; points: number[]; graphic: PIXI.Graphics } | null = null;
   private drawingDrag: { id: string; pointer: { x: number; y: number }; points: number[] } | null = null;
-  private tokenOwners = new Map<string, string | null>();
+  private tokenOwners = new Map<string, string[]>();
   private selectedTokenIds = new Set<string>();
   private selectionBox: { x: number; y: number; currentX: number; currentY: number } | null = null;
 
@@ -218,6 +218,9 @@ export class GameController {
     if (this.activeTool === "select") {
       if (event.target !== this.pixiApp.app.stage) return;
       event.stopPropagation();
+      this.selection.selectedToken = null;
+      this.selection.isDragging = false;
+      this.setSelectedTokenIds([]);
       this.selectionBox = { x: event.global.x, y: event.global.y, currentX: event.global.x, currentY: event.global.y };
       return;
     }
@@ -297,7 +300,7 @@ export class GameController {
 
   private canControlToken(id: string): boolean {
     if (this.currentRole === "gm") return true;
-    return this.currentRole === "player" && this.currentUserId !== null && this.tokenOwners.get(id) === this.currentUserId;
+    return this.currentRole === "player" && this.currentUserId !== null && (this.tokenOwners.get(id) ?? []).includes(this.currentUserId);
   }
 
   private setSelectedTokenIds(ids: string[]) {
@@ -306,6 +309,9 @@ export class GameController {
       const highlight = this.highlights.get(token);
       if (highlight) highlight.visible = this.selectedTokenIds.has(id);
     }
+    const selectedOwners = [...this.selectedTokenIds].map((id) => this.tokenOwners.get(id) ?? []);
+    const commonOwners = selectedOwners.length ? selectedOwners[0].filter((owner) => selectedOwners.every((owners) => owners.includes(owner))) : [];
+    window.dispatchEvent(new CustomEvent("vtt-token-selection", { detail: { tokenIds: [...this.selectedTokenIds], ownerUserIds: commonOwners } }));
   }
 
   private renderDraft(pointer?: { x: number; y: number }) {
@@ -462,11 +468,22 @@ export class GameController {
         const id = this.tokens.getId(candidate);
         return this.activeTool === "select" && !!id && this.canControlToken(id);
       },
-      onTokenSelected: (candidate) => {
+      onTokenSelected: (candidate, event) => {
         this.selectedDrawingId = null;
         const id = this.tokens.getId(candidate);
-        if (id) this.setSelectedTokenIds([id]);
+        if (!id) return;
+        const ctrl = event.ctrlKey || event.metaKey;
+        if (ctrl) {
+          const next = new Set(this.selectedTokenIds);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          this.setSelectedTokenIds([...next]);
+          return "toggle";
+        }
+        if (this.selectedTokenIds.has(id) && this.selectedTokenIds.size > 1) return "keep";
+        this.setSelectedTokenIds([id]);
+        return "select";
       },
+      getSelectedTokens: () => [...this.selectedTokenIds].map((id) => this.tokens.get(id)).filter((t): t is PIXI.Container => !!t),
     });
   }
 
@@ -518,7 +535,7 @@ export class GameController {
       for (const drawing of data.payload.drawings) this.createDrawing(drawing);
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
-        this.tokenOwners.set(t.id, t.owner_user_id ?? null);
+        this.tokenOwners.set(t.id, t.owner_user_ids ?? (t.owner_user_id ? [t.owner_user_id] : []));
         this.registerToken(token);
         if (t.asset_id) void this.tokens.setImage(t.id, assetUrl(t.asset_id));
       }
@@ -575,9 +592,16 @@ export class GameController {
 
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
-      this.tokenOwners.set(data.payload.id, data.payload.owner_user_id ?? null);
+      this.tokenOwners.set(data.payload.id, data.payload.owner_user_ids ?? (data.payload.owner_user_id ? [data.payload.owner_user_id] : []));
       this.registerToken(token);
       if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
+      return;
+    }
+
+    if (data.type === "TOKEN_OWNERS_CHANGED") {
+      if (data.payload.scene_id !== this.currentSceneId) return;
+      for (const item of data.payload.tokens) this.tokenOwners.set(item.token_id, item.owner_user_ids);
+      this.setSelectedTokenIds([...this.selectedTokenIds]);
       return;
     }
 

@@ -16,6 +16,7 @@ export type Token = {
   y: number;
   asset_id?: string | null;
   owner_user_id?: string | null;
+  owner_user_ids?: string[];
 };
 
 export type Scene = {
@@ -140,6 +141,7 @@ export type ClientMessage =
   | { type: "SESSION_JOIN"; payload: { code: string } }
   | { type: "SESSION_ENTER"; payload: { session_id: string } }
   | { type: "SESSION_SET_DEFAULT_TOKEN_ASSET"; payload: { asset_id: string | null } }
+  | { type: "SESSION_MEMBERS_REQUEST"; payload: { session_id: string } }
   | { type: "INVITE_CREATE"; payload: CreateInvitePayload }
   | { type: "INVITE_DELETE"; payload: { code: string } }
   | { type: "SCENE_CREATE"; payload: { name: string } }
@@ -156,6 +158,7 @@ export type ClientMessage =
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
   | { type: "TOKEN_DELETE"; payload: { id: string } }
+  | { type: "TOKEN_OWNERS_SET"; payload: { token_ids: string[]; owner_user_ids: string[] } }
   | { type: "BACKUP_EXPORT_REQUEST"; payload: { session_id: string } }
   | { type: "BACKUP_IMPORT_GRANT_REQUEST"; payload: {} }
   | { type: "ASSET_UPLOAD_GRANT_REQUEST"; payload: { session_id: string; asset_kind?: "token_image" | "map_image" } }
@@ -173,6 +176,7 @@ export type ServerMessage =
   | { type: "SESSION_JOINED"; payload: SessionJoinedPayload }
   | { type: "SESSION_ERROR"; payload: { message: string } }
   | { type: "SESSION_DEFAULT_TOKEN_ASSET_CHANGED"; payload: { asset_id: string | null } }
+  | { type: "SESSION_MEMBERS"; payload: { session_id: string; members: Member[] } }
   | { type: "INVITE_CREATED"; payload: InviteCodeSummary }
   | { type: "INVITE_DELETED"; payload: { code: string } }
   | { type: "SCENE_CREATED"; payload: Scene }
@@ -185,7 +189,8 @@ export type ServerMessage =
   | { type: "SCENE_DRAWING_CREATED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_MOVED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_DELETED"; payload: { scene_id: string; drawing_id: string } }
-  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null; owner_user_id?: string | null } }
+  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null; owner_user_id?: string | null; owner_user_ids?: string[] } }
+  | { type: "TOKEN_OWNERS_CHANGED"; payload: { scene_id: string; tokens: { token_id: string; owner_user_ids: string[] }[] } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string | null } }
   | { type: "TOKEN_DELETED"; payload: { id: string } }

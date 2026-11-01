@@ -4,20 +4,43 @@ import { generateId } from "./idGenerators.js";
 export function createToken(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
   const id = generateId("token");
   db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y, ownerUserId ?? null);
+  if (ownerUserId) db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)").run(id, ownerUserId);
   return getToken(id)!;
 }
 
+function withOwners<T extends { id: string }>(token: T) {
+  const owner_user_ids = (db.prepare("SELECT user_id FROM token_owners WHERE token_id = ? ORDER BY created_at, user_id").all(token.id) as { user_id: string }[]).map((r) => r.user_id);
+  return { ...token, owner_user_ids };
+}
+
+export function setTokenOwners(tokenIds: string[], userIds: string[]) {
+  const update = db.transaction(() => {
+    const remove = db.prepare("DELETE FROM token_owners WHERE token_id = ?");
+    const add = db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)");
+    const legacy = db.prepare("UPDATE tokens SET owner_user_id = ? WHERE id = ?");
+    for (const tokenId of tokenIds) {
+      remove.run(tokenId);
+      for (const userId of userIds) add.run(tokenId, userId);
+      legacy.run(userIds.length === 1 ? userIds[0] : null, tokenId);
+    }
+  });
+  update();
+  return tokenIds.map((id) => ({ token_id: id, owner_user_ids: (getToken(id)?.owner_user_ids ?? []) }));
+}
+
 export function getToken(id: string) {
-  return db.prepare("SELECT * FROM tokens WHERE id = ?").get(id) as
+  const token = db.prepare("SELECT * FROM tokens WHERE id = ?").get(id) as
   | { id: string; scene_id: string; asset_id: string | null; x: number; y: number; owner_user_id: string | null }
     | undefined;
+  return token ? withOwners(token) : undefined;
 }
 
 export function getTokensForScene(sceneId: string) {
-  return db.prepare(
+  const tokens = db.prepare(
     // "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
     "SELECT * FROM tokens WHERE scene_id = ? ORDER BY rowid"
   ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; owner_user_id: string | null; created_at: number }[];
+  return tokens.map(withOwners);
 }
 
 export function getTokensForSession(sessionId: string) {
