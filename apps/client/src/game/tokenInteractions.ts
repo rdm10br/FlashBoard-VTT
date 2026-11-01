@@ -13,18 +13,25 @@ type TokenInteractionDeps = {
   selection: SelectionState;
   getTokenId: (token: PIXI.Container) => string | undefined;
   onMoveCommitted: (id: string, x: number, y: number) => void;
+  canInteract?: () => boolean;
+  onTokenSelected?: () => void;
 };
 
 // Registra os handlers de seleção/drag de um token individual.
 // Toda a coordenação entre tokens (qual está selecionado, offset do drag)
 // vive no objeto `selection`, compartilhado por referência com o GameController.
 export function registerTokenInteractions(token: PIXI.Container, deps: TokenInteractionDeps) {
-  const { grid, highlights, selection, getTokenId, onMoveCommitted } = deps;
+  const { grid, highlights, selection, getTokenId, onMoveCommitted, canInteract, onTokenSelected } = deps;
 
   token.cursor = "pointer";
   token.eventMode = "static";
 
   token.on("pointerdown", (event) => {
+    if (canInteract && !canInteract()) {
+      event.stopPropagation();
+      return;
+    }
+    onTokenSelected?.();
     if (selection.selectedToken) {
       const prev = highlights.get(selection.selectedToken);
       if (prev) prev.visible = false;

@@ -65,6 +65,24 @@ export type SceneMap = {
   scale: number;
 };
 
+export type MeasurementMode = "grid" | "custom" | "free";
+export type SceneMeasurementConfig = {
+  mode: MeasurementMode;
+  unit_label: string;
+  units_per_cell: number;
+};
+
+export type SceneDrawingKind = "line" | "ellipse" | "polygon" | "freehand" | "measurement";
+export type SceneDrawing = {
+  id: string;
+  scene_id: string;
+  owner_user_id: string;
+  kind: SceneDrawingKind;
+  points: number[];
+  shared: boolean;
+  persistent: boolean;
+};
+
 export type SessionJoinedPayload = {
   session_id: string;
   session_name: string;
@@ -128,6 +146,10 @@ export type ClientMessage =
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
   | { type: "SCENE_MAP_SET"; payload: SceneMap & { scene_id: string } | { scene_id: string; asset_id: null } }
   | { type: "SCENE_CONFIG_SET"; payload: SceneConfig & { scene_id: string } }
+  | { type: "SCENE_MEASURE_CONFIG_SET"; payload: { scene_id: string; config: SceneMeasurementConfig } }
+  | { type: "SCENE_DRAWING_CREATE"; payload: { scene_id: string; kind: SceneDrawingKind; points: number[]; shared: boolean; keep: boolean } }
+  | { type: "SCENE_DRAWING_MOVE"; payload: { id: string; points: number[] } }
+  | { type: "SCENE_DRAWING_DELETE"; payload: { id: string } }
   | { type: "TOKEN_CREATE_REQUEST"; payload: { scene_id: string; x: number; y: number; asset_id?: string } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_SET_ASSET"; payload: { id: string; asset_id: string } }
@@ -157,6 +179,10 @@ export type ServerMessage =
   | { type: "SCENE_VISIBILITY_CHANGED"; payload: { scene_id: string; visible: boolean } }
   | { type: "SCENE_MAP_CHANGED"; payload: { scene_id: string; map: SceneMap | null } }
   | { type: "SCENE_CONFIG_CHANGED"; payload: { scene_id: string; config: SceneConfig } }
+  | { type: "SCENE_MEASURE_CONFIG_CHANGED"; payload: { scene_id: string; config: SceneMeasurementConfig } }
+  | { type: "SCENE_DRAWING_CREATED"; payload: { drawing: SceneDrawing } }
+  | { type: "SCENE_DRAWING_MOVED"; payload: { drawing: SceneDrawing } }
+  | { type: "SCENE_DRAWING_DELETED"; payload: { scene_id: string; drawing_id: string } }
   | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string | null } }
@@ -188,6 +214,8 @@ export type SceneState = {
   tokens: Token[];
   map: SceneMap | null;
   config: SceneConfig;
+  measurement_config: SceneMeasurementConfig;
+  drawings: SceneDrawing[];
 };
 
 export * from "./validation.js";

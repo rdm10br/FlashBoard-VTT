@@ -1,4 +1,4 @@
-import type { ClientMessage, SceneConfig } from "@vtt/protocol";
+import type { ClientMessage, SceneConfig, SceneMeasurementConfig } from "@vtt/protocol";
 import { LIMITS } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
 import {
@@ -7,7 +7,7 @@ import {
   getSceneState,
   setSceneVisibilityOnScene,
 } from "../services/gameService.js";
-import { getAsset, getScene, setActiveScene, setSceneMap, setSceneConfig } from "../db/index.js";
+import { getAsset, getScene, setActiveScene, setSceneMap, setSceneConfig, setSceneMeasurementConfig } from "../db/index.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 
@@ -49,7 +49,7 @@ function handleSceneSwitch(payload: { scene_id: string }, ctx: HandlerContext) {
   const scene = canEnterScene(payload.scene_id, state.session_id!, state.role);
   if (!scene) return;
   clientRegistry.setScene(state, payload.scene_id);
-  sendSceneState(ws, payload.scene_id);
+  sendSceneState(ws, payload.scene_id, state.user_id!);
 }
 
 function handleScenePush(payload: { scene_id: string }, ctx: HandlerContext) {
@@ -72,7 +72,9 @@ function handleScenePush(payload: { scene_id: string }, ctx: HandlerContext) {
   }
 
   broadcastToSession(session_id, { type: "SCENE_PUSHED", payload: { scene_id } });
-  broadcastToSession(session_id, { type: "SCENE_STATE", payload: getSceneState(scene_id) });
+  for (const client of clientRegistry.inSession(session_id)) {
+    if (client.user_id) send(client.ws, { type: "SCENE_STATE", payload: getSceneState(scene_id, client.user_id) });
+  }
 }
 
 function handleSceneSetVisible(payload: { scene_id: string; visible: boolean }, ctx: HandlerContext) {
@@ -192,6 +194,33 @@ function handleSceneConfigSet(
   broadcastToScene(scene.id, { type: "SCENE_CONFIG_CHANGED", payload: { scene_id: scene.id, config } });
 }
 
+function handleSceneMeasureConfigSet(
+  payload: Extract<ClientMessage, { type: "SCENE_MEASURE_CONFIG_SET" }>['payload'],
+  ctx: HandlerContext,
+) {
+  const { state, ws } = ctx;
+  if (state.role !== "gm") {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Apenas o mestre pode configurar a régua da cena." } });
+    return;
+  }
+  if (!payload || payload.scene_id !== state.scene_id) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Selecione a cena antes de configurar a régua." } });
+    return;
+  }
+  const scene = getScene(payload.scene_id);
+  const config = payload.config as SceneMeasurementConfig;
+  if (!scene || scene.session_id !== state.session_id || !config ||
+      !["grid", "custom", "free"].includes(config.mode) ||
+      typeof config.unit_label !== "string" || config.unit_label.trim().length < 1 || config.unit_label.length > 24 ||
+      !Number.isFinite(config.units_per_cell) || config.units_per_cell < 0.001 || config.units_per_cell > 1_000_000) {
+    send(ws, { type: "SESSION_ERROR", payload: { message: "Configuração de medida inválida." } });
+    return;
+  }
+  const normalized = { ...config, unit_label: config.unit_label.trim() };
+  setSceneMeasurementConfig(scene.id, normalized);
+  broadcastToScene(scene.id, { type: "SCENE_MEASURE_CONFIG_CHANGED", payload: { scene_id: scene.id, config: normalized } });
+}
+
 export const sceneHandlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   SCENE_CREATE: handleSceneCreate,
   SCENE_SWITCH: handleSceneSwitch,
@@ -199,4 +228,5 @@ export const sceneHandlers: Partial<Record<ClientMessage["type"], MessageHandler
   SCENE_SET_VISIBLE: handleSceneSetVisible,
   SCENE_MAP_SET: handleSceneMapSet,
   SCENE_CONFIG_SET: handleSceneConfigSet,
+  SCENE_MEASURE_CONFIG_SET: handleSceneMeasureConfigSet,
 };

@@ -64,7 +64,7 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
   });
 
   if (activeSceneId) {
-    sendSceneState(ws, activeSceneId);
+    sendSceneState(ws, activeSceneId, state.user_id!);
   }
 }
 
@@ -97,7 +97,7 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
   });
 
   if (activeSceneId) {
-    sendSceneState(ws, activeSceneId);
+    sendSceneState(ws, activeSceneId, state.user_id!);
   }
 }
 

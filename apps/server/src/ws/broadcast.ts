@@ -13,8 +13,8 @@ export function send(ws: WebSocket, msg: ServerMessage) {
   }
 }
 
-export function sendSceneState(ws: WebSocket, scene_id: string) {
-  const sceneState = getSceneState(scene_id);
+export function sendSceneState(ws: WebSocket, scene_id: string, user_id: string) {
+  const sceneState = getSceneState(scene_id, user_id);
   send(ws, { type: "SCENE_STATE", payload: sceneState });
 }
 

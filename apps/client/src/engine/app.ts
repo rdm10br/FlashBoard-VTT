@@ -23,11 +23,12 @@ export class App {
 
     this.layers.background = new PIXI.Container();
     this.layers.grid = new PIXI.Container();
+    this.layers.drawings = new PIXI.Container();
     this.layers.tokens = new PIXI.Container();
     this.layers.ui = new PIXI.Container();
 
     this.app.stage.addChild(this.camera);
-    this.camera.addChild(this.layers.background, this.layers.grid, this.layers.tokens);
+    this.camera.addChild(this.layers.background, this.layers.grid, this.layers.tokens, this.layers.drawings);
     this.app.stage.addChild(this.layers.ui);
 
     this.app.stage.eventMode = "static";

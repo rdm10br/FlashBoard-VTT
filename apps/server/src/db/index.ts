@@ -21,5 +21,7 @@ export * from "./tokenRepo.js";
 export * from "./chatRepo.js";
 export * from "./backupRepo.js";
 export * from "./assetRepo.js";
+export * from "./drawingRepo.js";
+export * from "./idGenerators.js";
 
 export default db;

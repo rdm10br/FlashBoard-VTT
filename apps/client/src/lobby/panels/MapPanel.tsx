@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SceneMap, ServerMessage } from "@vtt/protocol";
+import type { SceneMap, SceneMeasurementConfig, ServerMessage } from "@vtt/protocol";
 import { ASSET_UPLOAD_URL, assetUrl } from "../../network/apiBase";
 import { SocketManager } from "../../network/socket";
 
@@ -7,14 +7,25 @@ type MapPanelProps = {
   session_id: string;
   scene_id: string | null;
   map: SceneMap | null;
+  measurementConfig: SceneMeasurementConfig | null;
   socket: SocketManager;
 };
 
-export function MapPanel({ session_id, scene_id, map, socket }: MapPanelProps) {
+export function MapPanel({ session_id, scene_id, map, measurementConfig, socket }: MapPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFile = useRef<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [measureMode, setMeasureMode] = useState<SceneMeasurementConfig["mode"]>("grid");
+  const [unitLabel, setUnitLabel] = useState("unidades");
+  const [unitsPerCell, setUnitsPerCell] = useState(1);
+
+  useEffect(() => {
+    if (!measurementConfig) return;
+    setMeasureMode(measurementConfig.mode);
+    setUnitLabel(measurementConfig.unit_label);
+    setUnitsPerCell(measurementConfig.units_per_cell);
+  }, [measurementConfig]);
 
   useEffect(() => {
     socket.setAssetUploadHandler("map_image", (data: ServerMessage) => {
@@ -95,12 +106,37 @@ export function MapPanel({ session_id, scene_id, map, socket }: MapPanelProps) {
     setStatus("Mapa removido desta cena.");
   }
 
+  function saveMeasurementConfig() {
+    if (!scene_id) return;
+    socket.send({ type: "SCENE_MEASURE_CONFIG_SET", payload: {
+      scene_id,
+      config: { mode: measureMode, unit_label: unitLabel.trim() || "unidades", units_per_cell: Number(unitsPerCell) },
+    } });
+    setStatus("Configuração da régua salva nesta cena.");
+  }
+
   return (
     <div style={styles.panel}>
       <p style={styles.title}>Mapa da cena</p>
       <p style={styles.note}>
         {scene_id ? "O mapa fica atrás da grade e dos tokens, e é salvo nesta cena." : "Entre em uma cena para gerenciar o mapa."}
       </p>
+      <div style={styles.measureConfig}>
+        <p style={styles.title}>Régua desta cena</p>
+        <select value={measureMode} onChange={(event) => setMeasureMode(event.target.value as SceneMeasurementConfig["mode"])} disabled={!scene_id}>
+          <option value="grid">Células da grade</option>
+          <option value="custom">Unidade própria</option>
+          <option value="free">Distância livre</option>
+        </select>
+        {measureMode === "custom" && <>
+          <input value={unitLabel} maxLength={24} onChange={(event) => setUnitLabel(event.target.value)} placeholder="Nome da unidade" />
+          <label style={styles.note}>Unidades por célula
+            <input type="number" min="0.001" max="1000000" step="any" value={unitsPerCell}
+              onChange={(event) => setUnitsPerCell(Number(event.target.value))} />
+          </label>
+        </>}
+        <button style={styles.button} onClick={saveMeasurementConfig} disabled={!scene_id}>Salvar modo da régua</button>
+      </div>
       {map && (
         <div style={styles.preview}>
           <img src={assetUrl(map.asset_id)} alt="Mapa atual da cena" style={styles.image} />
@@ -142,6 +178,7 @@ const styles: Record<string, React.CSSProperties> = {
   title: { margin: 0, color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" },
   note: { margin: 0, color: "#9ca3af", fontSize: "12px", lineHeight: 1.45 },
   preview: { display: "flex", alignItems: "center", gap: "10px" },
+  measureConfig: { display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid #2e303a", paddingTop: 10 },
   image: { width: "64px", height: "48px", objectFit: "cover", borderRadius: "4px", background: "#0f1115" },
   fileInput: { display: "none" },
   actions: { display: "flex", flexWrap: "wrap", gap: "6px" },

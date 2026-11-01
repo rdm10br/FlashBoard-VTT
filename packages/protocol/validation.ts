@@ -124,6 +124,19 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SCENE_CONFIG_SET":
       valid = isRecord(payload) && hasString(payload, "scene_id", 256) && isSceneConfig(payload);
       break;
+    case "SCENE_MEASURE_CONFIG_SET":
+      valid = isRecord(payload) && hasString(payload, "scene_id", 256) && isSceneMeasurementConfig(payload.config);
+      break;
+    case "SCENE_DRAWING_CREATE":
+      valid = isRecord(payload) && hasString(payload, "scene_id", 256) && isDrawingKind(payload.kind) &&
+        isDrawingPoints(payload.kind, payload.points) && typeof payload.shared === "boolean" && typeof payload.keep === "boolean";
+      break;
+    case "SCENE_DRAWING_MOVE":
+      valid = isRecord(payload) && hasString(payload, "id", 256) && isDrawingPoints("freehand", payload.points);
+      break;
+    case "SCENE_DRAWING_DELETE":
+      valid = isRecord(payload) && hasString(payload, "id", 256);
+      break;
     case "TOKEN_CREATE_REQUEST":
       valid = isRecord(payload) && hasString(payload, "scene_id", 256) && isCoordinate(payload.x) && isCoordinate(payload.y) &&
         hasOptionalString(payload, "asset_id", 256);
@@ -152,4 +165,24 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
   }
 
   return valid ? value as unknown as ClientMessage : undefined;
+}
+
+function isDrawingKind(value: unknown): value is "line" | "ellipse" | "polygon" | "freehand" | "measurement" {
+  return value === "line" || value === "ellipse" || value === "polygon" || value === "freehand" || value === "measurement";
+}
+
+function isDrawingPoints(kind: unknown, value: unknown): value is number[] {
+  if (!Array.isArray(value) || value.length < 4 || value.length > 2000 || value.length % 2 !== 0) return false;
+  if (!value.every((n) => isCoordinate(n))) return false;
+  const count = value.length / 2;
+  if (kind === "line" || kind === "ellipse" || kind === "measurement") return count === 2;
+  if (kind === "polygon") return count >= 3;
+  return true;
+}
+
+function isSceneMeasurementConfig(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (value.mode === "grid" || value.mode === "custom" || value.mode === "free") &&
+    isString(value.unit_label, 24) && value.unit_label.trim().length > 0 &&
+    isFiniteNumber(value.units_per_cell) && value.units_per_cell >= 0.001 && value.units_per_cell <= 1_000_000;
 }

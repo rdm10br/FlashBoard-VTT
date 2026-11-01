@@ -3,7 +3,7 @@ import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
-import type { ChatMessage, InviteCodeSummary, Role, ServerMessage, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneMeasurementConfig, ServerMessage, SessionAsset } from "@vtt/protocol";
 import type { ConnectionStatus } from "./network/socket";
 import { setAssetKey } from "./network/apiBase";
 
@@ -41,6 +41,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
   const [session, setSession] = useState<SessionData | null>(null);
   const [currentSceneId, setCurrentSceneId] = useState<string | null>(null);
   const [sceneMap, setSceneMap] = useState<SceneMap | null>(null);
+  const [measurementConfig, setMeasurementConfig] = useState<SceneMeasurementConfig | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
     sessionRef.current = null;
     setCurrentSceneId(null);
     setSceneMap(null);
+    setMeasurementConfig(null);
     setUser(null);
     setSession(null);
     setUserError(null);
@@ -139,6 +141,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setAssetError(null);
         setSession(null);
         setUser(null);
+        setMeasurementConfig(null);
         setUserError(null);
         setAdminError(null);
         setScreen("login");
@@ -158,6 +161,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setAssetKey(asset_key);
         setCurrentSceneId(active_scene_id || scenes[0]?.id || null);
         setSceneMap(null);
+        setMeasurementConfig(null);
 
         const nextSession = {
           session_id,
@@ -170,6 +174,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
         };
         sessionRef.current = nextSession;
         setSession(nextSession);
+        socket.forwardToGame(data);
         setSessionAssets([]);
         setAssetError(null);
 
@@ -199,6 +204,13 @@ export function App({ socket, onSessionJoined }: AppProps) {
       if (data.type === "SCENE_STATE") {
         setCurrentSceneId(data.payload.scene_id);
         setSceneMap(data.payload.map);
+        setMeasurementConfig(data.payload.measurement_config);
+        socket.forwardToGame(data);
+        return;
+      }
+
+      if (data.type === "SCENE_MEASURE_CONFIG_CHANGED") {
+        setMeasurementConfig(data.payload.config);
         socket.forwardToGame(data);
         return;
       }
@@ -375,6 +387,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           default_token_asset_id={session.default_token_asset_id}
           current_scene_id={currentSceneId}
           map={sceneMap}
+          measurementConfig={measurementConfig}
           socket={socket}
           chat={session.chat}
         />

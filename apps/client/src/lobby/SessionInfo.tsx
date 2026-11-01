@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Role, SceneMap, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
@@ -7,6 +7,7 @@ import { ChatPanel } from "./panels/ChatPanel";
 import { MapPanel } from "./panels/MapPanel";
 import { FloatingPanel } from "./panels/FloatingPanel";
 import { AssetLibraryPanel } from "./panels/AssetLibraryPanel";
+import { MapToolsPanel } from "./panels/MapToolsPanel";
 
 type SessionInfoProps = {
   session_id: string;
@@ -19,12 +20,13 @@ type SessionInfoProps = {
   default_token_asset_id: string | null;
   current_scene_id: string | null;
   map: SceneMap | null;
+  measurementConfig: SceneMeasurementConfig | null;
   socket: SocketManager;
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, assets, assetError, default_token_asset_id, current_scene_id, map, socket, chat }: SessionInfoProps) {
-  const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat" | "map">(() => (role === "gm" ? "session" : "tokens"));
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, assets, assetError, default_token_asset_id, current_scene_id, map, measurementConfig, socket, chat }: SessionInfoProps) {
+  const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat" | "map" | "tools">(() => (role === "gm" ? "session" : "tokens"));
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
@@ -91,8 +93,9 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   ) : null;
   const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
   const mapPanelElement = role === "gm"
-    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} socket={socket} />
+    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} measurementConfig={measurementConfig} socket={socket} />
     : null;
+  const mapToolsPanelElement = <MapToolsPanel sceneId={current_scene_id} config={measurementConfig} />;
   const chatPanelElement = (
     <ChatPanel chat={chat} socket={socket} maxHeight={detachedTab === "chat" ? "300px" : "200px"} />
   );
@@ -132,12 +135,18 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
               </button>
             </div>
           )}
+          <button
+            style={{ ...styles.tabBtn, ...(activeTab === "tools" ? styles.tabActive : {}), ...(collapsed ? styles.tabCollapsed : {}) }}
+            onClick={() => setActiveTab("tools")}
+          >
+            ✏ Ferramentas
+          </button>
           {role === "gm" && (
             <button
               style={{ ...styles.tabBtn, ...(activeTab === "map" ? styles.tabActive : {}) }}
               onClick={() => setActiveTab("map")}
             >
-              🗺 Mapa
+              🗺 Mapa da cena
             </button>
           )}
           <div style={{ position: "relative", display: "inline-flex", alignItems: "center", marginRight: 8 }}>
@@ -174,6 +183,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
 
         {activeTab === "session" && detachedTab !== "session" && sessionPanelElement}
         {activeTab === "map" && detachedTab !== "map" && mapPanelElement}
+        {activeTab === "tools" && mapToolsPanelElement}
         {activeTab === "tokens" && detachedTab !== "tokens" && tokenPanelElement}
         {activeTab === "chat" && detachedTab !== "chat" && chatPanelElement}
       </div>

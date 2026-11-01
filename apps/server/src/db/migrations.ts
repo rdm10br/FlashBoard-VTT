@@ -135,6 +135,27 @@ function migrateLegacySchema(db: Database.Database) {
 
 const migrations: Migration[] = [
   { version: 1, name: "legacy-schema-compatibility", up: migrateLegacySchema },
+  {
+    version: 2,
+    name: "scene-measurements-and-drawings",
+    up(db) {
+      db.exec(`
+        ALTER TABLE scenes ADD COLUMN measurement_mode TEXT NOT NULL DEFAULT 'grid';
+        ALTER TABLE scenes ADD COLUMN measurement_unit_label TEXT NOT NULL DEFAULT 'unidades';
+        ALTER TABLE scenes ADD COLUMN measurement_units_per_cell REAL NOT NULL DEFAULT 1;
+        CREATE TABLE scene_drawings (
+          id TEXT PRIMARY KEY,
+          scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+          owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL CHECK(kind IN ('line', 'ellipse', 'polygon', 'freehand', 'measurement')),
+          points TEXT NOT NULL,
+          shared INTEGER NOT NULL DEFAULT 1,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX scene_drawings_scene_id_idx ON scene_drawings(scene_id, created_at);
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

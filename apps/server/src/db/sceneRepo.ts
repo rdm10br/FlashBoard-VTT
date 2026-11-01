@@ -30,6 +30,9 @@ export function getScene(id: string) {
         grid_size: number;
         grid_color: string;
         grid_opacity: number;
+        measurement_mode: "grid" | "custom" | "free";
+        measurement_unit_label: string;
+        measurement_units_per_cell: number;
       }
     | undefined;
 }
@@ -83,4 +86,15 @@ export function setSceneConfig(
     SET width = ?, height = ?, grid_type = ?, grid_size = ?, grid_color = ?, grid_opacity = ?
     WHERE id = ?
   `).run(c.width, c.height, c.grid_type, c.grid_size, c.grid_color, c.grid_opacity, sceneId);
+}
+
+export function setSceneMeasurementConfig(
+  sceneId: string,
+  config: { mode: "grid" | "custom" | "free"; unit_label: string; units_per_cell: number },
+): void {
+  db.prepare(`
+    UPDATE scenes
+    SET measurement_mode = ?, measurement_unit_label = ?, measurement_units_per_cell = ?
+    WHERE id = ?
+  `).run(config.mode, config.unit_label, config.units_per_cell, sceneId);
 }

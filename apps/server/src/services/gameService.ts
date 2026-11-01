@@ -1,5 +1,5 @@
 import type { Role } from "../db/index.js";
-import type { GridType, SceneConfig, SceneMap } from "@vtt/protocol";
+import type { GridType, SceneConfig, SceneMap, SceneMeasurementConfig } from "@vtt/protocol";
 import { createScene,
   getScene,
   setSceneVisibility,
@@ -7,13 +7,18 @@ import { createScene,
   getTokensForScene,
   moveToken,
   setTokenAsset,
-  deleteToken
+  deleteToken,
+  listSceneDrawings,
 } from "../db/index.js";
 
 export const DEFAULT_SCENE_CONFIG: SceneConfig = {
   width: 2000, height: 1500,
   grid_type: "square", grid_size: 50,
   grid_color: "#ffffff", grid_opacity: 0.5,
+};
+
+export const DEFAULT_MEASUREMENT_CONFIG: SceneMeasurementConfig = {
+  mode: "grid", unit_label: "unidades", units_per_cell: 1,
 };
 
 export function createSceneForSession(sessionId: string, name: string) {
@@ -37,9 +42,9 @@ export function createSceneForSession(sessionId: string, name: string) {
 //   return { scene_id: sceneId, tokens, map };
 // }
 
-export function getSceneState(sceneId: string) {
+export function getSceneState(sceneId: string, userId: string) {
   const scene = getScene(sceneId);
-  if (!scene) return { scene_id: sceneId, tokens: [], map: null, config: DEFAULT_SCENE_CONFIG };
+  if (!scene) return { scene_id: sceneId, tokens: [], map: null, config: DEFAULT_SCENE_CONFIG, measurement_config: DEFAULT_MEASUREMENT_CONFIG, drawings: [] };
   const tokens = getTokensForScene(sceneId);
   const map: SceneMap | null = scene.map_asset_id && scene.map_asset_kind === "map_image"
     ? { asset_id: scene.map_asset_id, x: scene.map_x, y: scene.map_y, scale: scene.map_scale }
@@ -52,7 +57,13 @@ export function getSceneState(sceneId: string) {
     grid_color: scene.grid_color,
     grid_opacity: scene.grid_opacity,
   };
-  return { scene_id: sceneId, tokens, map, config };
+  const measurement_config: SceneMeasurementConfig = {
+    mode: scene.measurement_mode,
+    unit_label: scene.measurement_unit_label,
+    units_per_cell: scene.measurement_units_per_cell,
+  };
+  const drawings = listSceneDrawings(sceneId, userId);
+  return { scene_id: sceneId, tokens, map, config, measurement_config, drawings };
 }
 
 export function canEnterScene(sceneId: string, session_id: string, role: Role) {
