@@ -11,7 +11,6 @@ const rootDir = path.join(__dirname, "..");
 const CLIENT_INDEX = path.join(rootDir, "apps/client/dist/index.html");
 const SERVER_ENTRY = path.join(rootDir, "apps/server/dist/apps/server/src/server.js");
 const NAMED_TUNNEL_CONFIG = path.join(rootDir, "scripts/tunnel-config.yml");
-const PORT = Number(process.env.PORT ?? 3000);
 
 function runBuild(label, args) {
   console.log(`\n▶ Build ausente — buildando ${label}...`);
@@ -70,17 +69,47 @@ function validateNamedTunnelConfig(configPath) {
     return { valid: false, reason: "campo 'ingress' ausente ou vazio" };
   }
 
-  const hasValidRoute = parsed.ingress.some(
+  const route = parsed.ingress.find(
     (rule) => rule && typeof rule.hostname === "string" && typeof rule.service === "string"
   );
-  if (!hasValidRoute) {
+  if (!route) {
     return { valid: false, reason: "nenhuma regra de 'ingress' com 'hostname' e 'service' válidos" };
   }
 
-  return { valid: true, reason: null, hostname: parsed.ingress.find((r) => r.hostname)?.hostname };
+  let serviceUrl;
+  try {
+    serviceUrl = new URL(route.service);
+  } catch {
+    return { valid: false, reason: "serviço da regra de ingress não é uma URL válida" };
+  }
+  if (serviceUrl.protocol !== "http:" && serviceUrl.protocol !== "https:") {
+    return { valid: false, reason: "serviço da regra de ingress deve usar HTTP ou HTTPS" };
+  }
+
+  const servicePort = serviceUrl.port
+    ? Number(serviceUrl.port)
+    : serviceUrl.protocol === "https:"
+      ? 443
+      : 80;
+  return { valid: true, reason: null, hostname: route.hostname, servicePort };
 }
 
 const namedTunnel = validateNamedTunnelConfig(NAMED_TUNNEL_CONFIG);
+const requestedPort = process.env.PORT === undefined ? undefined : Number(process.env.PORT);
+if (requestedPort !== undefined && (!Number.isInteger(requestedPort) || requestedPort < 1 || requestedPort > 65535)) {
+  console.error("✗ PORT deve ser um número inteiro entre 1 e 65535.");
+  process.exit(1);
+}
+
+if (namedTunnel.valid && requestedPort !== undefined && requestedPort !== namedTunnel.servicePort) {
+  console.error(
+    `✗ PORT=${requestedPort} não corresponde à porta ${namedTunnel.servicePort} definida no serviço do túnel nomeado. ` +
+      "Alinhe PORT com scripts/tunnel-config.yml ou remova PORT para usar a porta do túnel.",
+  );
+  process.exit(1);
+}
+
+const PORT = requestedPort ?? (namedTunnel.valid ? namedTunnel.servicePort : 3000);
 
 let tunnelArgs;
 if (namedTunnel.valid) {

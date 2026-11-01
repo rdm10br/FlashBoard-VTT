@@ -13,10 +13,10 @@ Na raiz do repositório:
 
 ```bash
 npm install
-npm run dev:server
+npm start
 ```
 
-O cliente Vite e o servidor são iniciados em paralelo. O primeiro cadastro cria uma conta com e-mail, apelido e senha; o login aceita e-mail ou apelido. Senhas devem ter pelo menos 12 caracteres.
+`npm start` inicia o servidor e o cliente Vite em paralelo. `npm run dev:server` inicia somente o servidor. O primeiro cadastro cria uma conta com e-mail, apelido e senha; o login aceita e-mail ou apelido. Senhas devem ter pelo menos 12 caracteres.
 
 ## Primeiro administrador
 
@@ -24,14 +24,14 @@ Antes de iniciar o servidor pela primeira vez, configure um segredo aleatório d
 
 **No Windows (PowerShell):**
 ```powershell
-\$env:ADMIN_BOOTSTRAP_TOKEN = (node -p "require('node:crypto').randomBytes(32).toString('base64url')")
-npm run dev:server
+$env:ADMIN_BOOTSTRAP_TOKEN = (node -p "require('node:crypto').randomBytes(32).toString('base64url')")
+npm start
 ```
 
 **No Linux / macOS (Bash/Zsh):**
 ```bash
-export ADMIN_BOOTSTRAP_TOKEN=\$(node -p "require('node:crypto').randomBytes(32).toString('base64url')")
-npm run dev:server
+export ADMIN_BOOTSTRAP_TOKEN=$(node -p "require('node:crypto').randomBytes(32).toString('base64url')")
+npm start
 ```
 
 O formulário de cadastro oferece o campo de bootstrap enquanto não existir um administrador. Informe o segredo somente na conta que deve ser a primeira administradora. O servidor não permite usá-lo novamente depois que um administrador for criado. Remova a variável do ambiente após concluir o bootstrap.
@@ -75,4 +75,4 @@ npm --workspace=apps/server run build
 npm test
 ```
 
-`npm run host` compila a aplicação e inicia o servidor com um túnel Cloudflare.
+`npm run host` compila a aplicação e inicia o servidor com um túnel Cloudflare. No túnel temporário, o servidor usa `PORT` ou, por padrão, a porta 3000. No túnel nomeado, o servidor usa a porta definida no primeiro serviço de `scripts/tunnel-config.yml`; se `PORT` também estiver definido, os valores precisam coincidir.
