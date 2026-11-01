@@ -203,6 +203,14 @@ export function App({ socket, onSessionJoined }: AppProps) {
       }
 
       if (data.type === "SESSION_LEFT") {
+        if (data.payload.session_id) {
+          setUser((current) => current ? {
+            ...current,
+            sessions: data.payload.removed
+              ? current.sessions.filter((item) => item.id !== data.payload.session_id)
+              : current.sessions.map((item) => item.id === data.payload.session_id && data.payload.role ? { ...item, role: data.payload.role } : item),
+          } : current);
+        }
         socket.forwardToGame({ type: "SCENE_CLEARED", payload: {} });
         sessionRef.current = null;
         setSession(null);

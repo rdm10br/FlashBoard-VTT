@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Role, Scene, ScenePartyMember, SceneConfig, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Member, Role, Scene, ScenePartyMember, SceneConfig, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
@@ -36,6 +36,17 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
+  const [members, setMembers] = useState<(Member & { online: boolean })[]>([]);
+
+  useEffect(() => {
+    if (role !== "gm") return;
+    const refresh = () => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } });
+    const onMembers = (event: Event) => setMembers((event as CustomEvent<(Member & { online: boolean })[]>).detail);
+    window.addEventListener("vtt-session-members", onMembers);
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => { window.removeEventListener("vtt-session-members", onMembers); window.clearInterval(timer); };
+  }, [role, session_id, socket]);
 
   // useRef para o estado de resize: persiste entre renders sem recriar referências.
   const resizing = useRef({ active: false, startX: 0, startWidth: 380 });
@@ -93,6 +104,22 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   // Cada painel é criado uma única vez — só muda de lugar (docked ou floating) conforme detachedTab.
   const sessionPanelElement = role === "gm" ? (
     <>
+      <section style={{ display: "flex", flexDirection: "column", gap: 8, color: "#d1d5db", fontSize: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <strong style={{ color: "#f3f4f6" }}>Participantes ({members.length})</strong>
+          <button style={styles.collapseBtn} onClick={() => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } })}>Atualizar</button>
+        </div>
+        {members.map((member) => <div key={member.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ flex: 1 }}>{member.nickname} · {member.online ? "online" : "offline"}</span>
+          <select aria-label={`Cargo de ${member.nickname}`} value={member.role} onChange={(event) => {
+            socket.send({ type: "SESSION_MEMBER_ROLE_SET", payload: { user_id: member.id, role: event.target.value as Role } });
+            window.setTimeout(() => socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } }), 500);
+          }} style={{ background: "#0f172a", color: "#f3f4f6", border: "1px solid #343744", borderRadius: 4 }}>
+            <option value="gm">GM</option><option value="player">Player</option><option value="viewer">Viewer</option>
+          </select>
+          <button style={styles.leaveBtn} onClick={() => { if (window.confirm(`Remover ${member.nickname} da sessão?`)) socket.send({ type: "SESSION_MEMBER_REMOVE", payload: { user_id: member.id } }); }}>Remover</button>
+        </div>)}
+      </section>
       <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
       <AssetLibraryPanel assets={assets} error={assetError} socket={socket} />
     </>

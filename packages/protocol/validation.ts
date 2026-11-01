@@ -102,6 +102,13 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SESSION_MEMBERS_REQUEST":
       valid = isRecord(payload) && hasString(payload, "session_id", 256);
       break;
+    case "SESSION_MEMBER_ROLE_SET":
+      valid = isRecord(payload) && hasString(payload, "user_id", 256) &&
+        (payload.role === "gm" || payload.role === "player" || payload.role === "viewer");
+      break;
+    case "SESSION_MEMBER_REMOVE":
+      valid = isRecord(payload) && hasString(payload, "user_id", 256);
+      break;
     case "INVITE_CREATE":
       valid = isInvitePayload(payload);
       break;
@@ -195,7 +202,8 @@ function isDrawingPoints(kind: unknown, value: unknown): value is number[] {
   if (!Array.isArray(value) || value.length < 4 || value.length > 2000 || value.length % 2 !== 0) return false;
   if (!value.every((n) => isCoordinate(n))) return false;
   const count = value.length / 2;
-  if (kind === "line" || kind === "ellipse" || kind === "measurement") return count === 2;
+  if (kind === "line" || kind === "ellipse") return count === 2;
+  if (kind === "measurement") return count >= 2;
   if (kind === "polygon") return count >= 3;
   return true;
 }

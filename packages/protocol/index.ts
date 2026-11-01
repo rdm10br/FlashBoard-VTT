@@ -151,6 +151,8 @@ export type ClientMessage =
   | { type: "SERVER_SHUTDOWN_REQUEST"; payload: {} }
   | { type: "SESSION_SET_DEFAULT_TOKEN_ASSET"; payload: { asset_id: string | null } }
   | { type: "SESSION_MEMBERS_REQUEST"; payload: { session_id: string } }
+  | { type: "SESSION_MEMBER_ROLE_SET"; payload: { user_id: string; role: Role } }
+  | { type: "SESSION_MEMBER_REMOVE"; payload: { user_id: string } }
   | { type: "INVITE_CREATE"; payload: CreateInvitePayload }
   | { type: "INVITE_DELETE"; payload: { code: string } }
   | { type: "SCENE_CREATE"; payload: { name: string } }
@@ -193,13 +195,13 @@ export type ServerMessage =
   | { type: "USER_STATE"; payload: { user_id: string; nickname: string; sessions: SessionSummary[]; auth_token: string; is_admin: boolean } }
   | { type: "USER_ERROR"; payload: { message: string } }
   | { type: "USER_LOGGED_OUT"; payload: {} }
-  | { type: "SESSION_LEFT"; payload: {} }
+  | { type: "SESSION_LEFT"; payload: { session_id?: string; removed?: boolean; role?: Role } }
   | { type: "SERVER_SHUTDOWN_ACCEPTED"; payload: {} }
   | { type: "ADMIN_USERS"; payload: { users: AdminUserSummary[] } }
   | { type: "SESSION_JOINED"; payload: SessionJoinedPayload }
   | { type: "SESSION_ERROR"; payload: { message: string } }
   | { type: "SESSION_DEFAULT_TOKEN_ASSET_CHANGED"; payload: { asset_id: string | null } }
-  | { type: "SESSION_MEMBERS"; payload: { session_id: string; members: Member[] } }
+  | { type: "SESSION_MEMBERS"; payload: { session_id: string; members: (Member & { online: boolean })[] } }
   | { type: "INVITE_CREATED"; payload: InviteCodeSummary }
   | { type: "INVITE_DELETED"; payload: { code: string } }
   | { type: "SCENE_CREATED"; payload: Scene }

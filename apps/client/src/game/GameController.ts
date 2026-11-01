@@ -178,6 +178,10 @@ export class GameController {
       }
       return;
     }
+    if (event.key === "Escape" && this.draft) {
+      this.draft.graphic.destroy(); this.draft.label?.destroy(); this.draft = null;
+      return;
+    }
     if (event.key !== "Delete" && event.key !== "Backspace") return;
     if (this.selectedDrawingId) {
       event.preventDefault();
@@ -233,6 +237,17 @@ export class GameController {
   }
 
   private onStagePointerDown(event: PIXI.FederatedPointerEvent) {
+    if (event.button === 2) {
+      if (this.activeTool === "measurement" && this.draft?.kind === "measurement") {
+        event.stopPropagation();
+        const point = this.measurementPoint(event.getLocalPosition(this.pixiApp.camera), "measurement");
+        const last = this.draft.points.length - 2;
+        this.draft.points[last] = point.x; this.draft.points[last + 1] = point.y;
+        this.draft.points.push(point.x, point.y);
+        this.renderDraft();
+      }
+      return;
+    }
     if (event.button !== 0) return;
     if (this.activeTool === "select") {
       if (event.target !== this.pixiApp.app.stage) return;
@@ -245,6 +260,15 @@ export class GameController {
     }
     event.stopPropagation();
     const point = this.measurementPoint(event.getLocalPosition(this.pixiApp.camera), this.activeTool);
+    if (this.activeTool === "measurement") {
+      if (!this.draft) this.startDraft("measurement", [point.x, point.y, point.x, point.y]);
+      else if (this.draft.kind === "measurement") {
+        const last = this.draft.points.length - 2;
+        this.draft.points[last] = point.x; this.draft.points[last + 1] = point.y;
+        this.finishDraft();
+      }
+      return;
+    }
     if (this.activeTool === "polygon") {
       if (this.draft?.kind === "polygon" && event.detail >= 2) {
         this.finishDraft();
@@ -289,6 +313,7 @@ export class GameController {
 
   private onStagePointerUp(event: PIXI.FederatedPointerEvent) {
     if (this.selectionBox) this.finishSelectionBox(event.global);
+    if (this.draft?.kind === "measurement") return;
     this.finishDrawingGesture();
   }
 
@@ -346,8 +371,9 @@ export class GameController {
     if (pointer && this.draft.kind === "polygon") points.push(pointer.x, pointer.y);
     this.paintGeometry(this.draft.graphic, this.draft.kind, points, false);
     if (this.draft.kind === "measurement" && this.draft.label) {
+      const labelPoint = this.measurementLabelPosition(this.draft.points);
       this.draft.label.text = this.measurementLabel(this.draft.points);
-      this.draft.label.position.set((this.draft.points[0] + this.draft.points[2]) / 2, (this.draft.points[1] + this.draft.points[3]) / 2 - 14);
+      this.draft.label.position.set(labelPoint.x, labelPoint.y - 14);
     }
   }
 
@@ -428,7 +454,8 @@ export class GameController {
         style: { fontSize: 14, fill: "#ffffff", stroke: { color: "#111827", width: 3 } },
       });
       entry.label.anchor.set(0.5);
-      entry.label.position.set((drawing.points[0] + drawing.points[2]) / 2, (drawing.points[1] + drawing.points[3]) / 2);
+      const labelPoint = this.measurementLabelPosition(drawing.points);
+      entry.label.position.set(labelPoint.x, labelPoint.y);
       entry.graphic.addChild(entry.label);
     }
   }
@@ -450,15 +477,32 @@ export class GameController {
   }
 
   private measurementLabel(points: number[]): string {
-    const distance = Math.hypot(points[2] - points[0], points[3] - points[1]);
+    const distance = this.measurementDistance(points);
     if (this.measurementConfig.mode === "free") return `${Math.round(distance)} px`;
     const cells = this.measurementConfig.snap_to_cell_centers
-      ? this.grid.distanceInCells(points[0], points[1], points[2], points[3])
+      ? this.measurementCellDistance(points)
       : distance / Math.max(1, this.grid.cellSize);
     if (this.measurementConfig.mode === "custom") {
       return `${Number((cells * this.measurementConfig.units_per_cell).toFixed(2))} ${this.measurementConfig.unit_label}`;
     }
     return `${Number(cells.toFixed(2))} células`;
+  }
+
+  private measurementDistance(points: number[]): number {
+    let distance = 0;
+    for (let i = 2; i < points.length; i += 2) distance += Math.hypot(points[i] - points[i - 2], points[i + 1] - points[i - 1]);
+    return distance;
+  }
+
+  private measurementCellDistance(points: number[]): number {
+    let cells = 0;
+    for (let i = 2; i < points.length; i += 2) cells += this.grid.distanceInCells(points[i - 2], points[i - 1], points[i], points[i + 1]);
+    return cells;
+  }
+
+  private measurementLabelPosition(points: number[]) {
+    const i = points.length - 4;
+    return { x: (points[i] + points[i + 2]) / 2, y: (points[i + 1] + points[i + 3]) / 2 };
   }
 
   private updateDrawingInteractivity() {
@@ -515,6 +559,17 @@ export class GameController {
         return "select";
       },
       getSelectedTokens: () => [...this.selectedTokenIds].map((id) => this.tokens.get(id)).filter((t): t is PIXI.Container => !!t),
+      onMeasureStart: (candidate) => {
+        if (this.activeTool !== "measurement") return false;
+        const point = this.measurementPoint({ x: candidate.x + 25, y: candidate.y + 25 }, "measurement");
+        if (!this.draft) this.startDraft("measurement", [point.x, point.y, point.x, point.y]);
+        else if (this.draft.kind === "measurement") {
+          const last = this.draft.points.length - 2;
+          this.draft.points[last] = point.x; this.draft.points[last + 1] = point.y;
+          this.finishDraft();
+        }
+        return true;
+      },
     });
   }
 

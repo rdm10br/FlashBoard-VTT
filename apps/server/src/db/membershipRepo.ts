@@ -30,6 +30,14 @@ export function setMemberScene(sessionId: string, userId: string, sceneId: strin
   db.prepare("UPDATE memberships SET current_scene_id = ? WHERE session_id = ? AND user_id = ? AND role = 'player'").run(sceneId, sessionId, userId);
 }
 
+export function setMembershipRole(sessionId: string, userId: string, role: Role) {
+  db.prepare("UPDATE memberships SET role = ? WHERE session_id = ? AND user_id = ?").run(role, sessionId, userId);
+}
+
+export function deleteMembership(sessionId: string, userId: string) {
+  db.prepare("DELETE FROM memberships WHERE session_id = ? AND user_id = ?").run(sessionId, userId);
+}
+
 export function setMembersScene(sessionId: string, userIds: string[], sceneId: string) {
   const apply = db.transaction(() => {
     const update = db.prepare("UPDATE memberships SET current_scene_id = ? WHERE session_id = ? AND user_id = ? AND role = 'player'");

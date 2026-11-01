@@ -13,7 +13,7 @@ function validPoints(kind: SceneDrawingKind, points: unknown, width: number, hei
   if (!Array.isArray(points) || points.length < 4 || points.length > MAX_POINTS * 2 || points.length % 2 !== 0) return false;
   if (!points.every((n) => typeof n === "number" && Number.isFinite(n))) return false;
   const count = points.length / 2;
-  if ((kind === "line" || kind === "ellipse" || kind === "measurement") && count !== 2) return false;
+  if ((kind === "line" || kind === "ellipse") && count !== 2) return false;
   if (kind === "polygon" && count < 3) return false;
   for (let i = 0; i < points.length; i += 2) {
     if (points[i] < 0 || points[i] > width || points[i + 1] < 0 || points[i + 1] > height) return false;

@@ -16,13 +16,14 @@ type TokenInteractionDeps = {
   canInteract?: (token: PIXI.Container) => boolean;
   onTokenSelected?: (token: PIXI.Container, event: PIXI.FederatedPointerEvent) => "toggle" | "select" | "keep" | void;
   getSelectedTokens?: () => PIXI.Container[];
+  onMeasureStart?: (token: PIXI.Container) => boolean;
 };
 
 // Registra os handlers de seleção/drag de um token individual.
 // Toda a coordenação entre tokens (qual está selecionado, offset do drag)
 // vive no objeto `selection`, compartilhado por referência com o GameController.
 export function registerTokenInteractions(token: PIXI.Container, deps: TokenInteractionDeps) {
-  const { grid, highlights, selection, getTokenId, onMoveCommitted, canInteract, onTokenSelected, getSelectedTokens } = deps;
+  const { grid, highlights, selection, getTokenId, onMoveCommitted, canInteract, onTokenSelected, getSelectedTokens, onMeasureStart } = deps;
   let group: { pointer: { x: number; y: number }; origins: { token: PIXI.Container; x: number; y: number }[] } | null = null;
 
   token.cursor = "pointer";
@@ -30,6 +31,7 @@ export function registerTokenInteractions(token: PIXI.Container, deps: TokenInte
 
   token.on("pointerdown", (event) => {
     if (event.button !== 0) return;
+    if (onMeasureStart?.(token)) { event.stopPropagation(); return; }
     if (canInteract && !canInteract(token)) {
       event.stopPropagation();
       return;

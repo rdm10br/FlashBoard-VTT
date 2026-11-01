@@ -47,6 +47,7 @@ export function MapToolsPanel({ sceneId, config }: { sceneId: string | null; con
         <div style={styles.options}>
           <label><input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} /> Compartilhar medição</label>
           <label><input type="checkbox" checked={keep} onChange={(event) => setKeep(event.target.checked)} /> Manter no mapa</label>
+          <p style={styles.note}>Clique no mapa ou em um token para iniciar; clique com o botão direito para marcar curvas e clique esquerdo para concluir. Esc cancela.</p>
         </div>
       )}
       {tool === "polygon" && <p style={styles.note}>Clique para adicionar pontos; dê duplo clique para fechar.</p>}
