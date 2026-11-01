@@ -49,9 +49,15 @@ Contas existentes antes da migração ficam preservadas, mas sem credenciais e s
 - Tokens de sessão são guardados no `sessionStorage` do navegador, expiram após 30 dias e são invalidados no logout e quando um administrador redefine as credenciais.
 - `ADMIN_BOOTSTRAP_TOKEN` é segredo operacional: não o adicione ao repositório, a arquivos públicos ou a logs.
 
-## Persistência
+## Persistência e recuperação
 
-O SQLite e os uploads são gravados no diretório de dados do servidor. Para escolher outro diretório, defina `VTT_DATA_DIR` no ambiente antes de iniciar a aplicação. As migrações preservam contas antigas; faça uma cópia de segurança do banco antes de atualizar uma instalação existente.
+O servidor grava o banco SQLite em `VTT_DATA_DIR/vtt.db` e os arquivos enviados em `VTT_DATA_DIR/uploads/`. Em uma hospedagem, configure `VTT_DATA_DIR` para um volume persistente e gravável, fora do diretório temporário ou descartável da aplicação. Sem isso, uma recriação do container ou da instância pode apagar os dados.
+
+Para fazer uma cópia completa, pare o servidor de forma limpa e arquive o conteúdo inteiro de `VTT_DATA_DIR`, mantendo `vtt.db` e a pasta `uploads/` juntos. O banco usa WAL; não copie somente `vtt.db` enquanto o servidor estiver ativo. Guarde o arquivo de backup em outro local e com acesso restrito, pois ele contém dados de contas e sessões.
+
+Para restaurar, pare o servidor, preserve a pasta de dados atual como precaução, extraia o backup completo no caminho configurado em `VTT_DATA_DIR` e confirme que o processo tem permissão de leitura e escrita. Inicie o servidor e verifique `/health`, o login e os arquivos de mídia das sessões.
+
+A exportação JSON de uma sessão pelo aplicativo serve para transferir parte do conteúdo da sessão, mas não é um backup completo da hospedagem: o formato atual não inclui os arquivos enviados nem os vínculos com imagens de tokens e mapas. Para recuperação integral, use a cópia de `VTT_DATA_DIR`. As migrações preservam contas antigas; faça essa cópia antes de atualizar uma instalação existente.
 
 ## Mapas de cena
 
