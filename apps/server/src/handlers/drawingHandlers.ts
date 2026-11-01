@@ -7,6 +7,7 @@ import { clientRegistry } from "../clientRegistry.js";
 type EphemeralDrawing = SceneDrawing & { expires_at: number };
 const ephemeralDrawings = new Map<string, EphemeralDrawing>();
 const MAX_POINTS = 1000;
+const EPHEMERAL_MEASUREMENT_TTL_MS = 5_000;
 
 function validPoints(kind: SceneDrawingKind, points: unknown, width: number, height: number): points is number[] {
   if (!Array.isArray(points) || points.length < 4 || points.length > MAX_POINTS * 2 || points.length % 2 !== 0) return false;
@@ -44,7 +45,7 @@ function handleCreate(payload: Extract<ClientMessage, { type: "SCENE_DRAWING_CRE
     const drawing: EphemeralDrawing = {
       id: generateId("measure"), scene_id: scene.id, owner_user_id: state.user_id,
       kind: payload.kind, points: payload.points, shared, persistent: false,
-      expires_at: Date.now() + 30 * 60 * 1000,
+      expires_at: Date.now() + EPHEMERAL_MEASUREMENT_TTL_MS,
     };
     ephemeralDrawings.set(drawing.id, drawing);
     setTimeout(() => {
@@ -56,7 +57,7 @@ function handleCreate(payload: Extract<ClientMessage, { type: "SCENE_DRAWING_CRE
           if (client.scene_id === drawing.scene_id) send(client.ws, message);
         }
       }
-    }, 30 * 60 * 1000).unref?.();
+    }, EPHEMERAL_MEASUREMENT_TTL_MS).unref?.();
     publishDrawing(drawing, ws);
     return;
   }
