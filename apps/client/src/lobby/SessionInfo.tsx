@@ -120,6 +120,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
             </span>
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button style={styles.leaveBtn} title="Sair da sessão e voltar ao lobby" onClick={() => socket.send({ type: "SESSION_LEAVE", payload: {} })}>{collapsed ? "×" : "Sair da sessão"}</button>
             <button style={styles.collapseBtn} onClick={() => setCollapsed((s) => !s)}>{collapsed ? "›" : "‹"}</button>
           </div>
         </div>
@@ -298,5 +299,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "6px",
     padding: "4px 6px",
     cursor: "pointer",
+  },
+  leaveBtn: {
+    background: "rgba(239,68,68,0.12)",
+    border: "1px solid rgba(239,68,68,0.45)",
+    color: "#fca5a5",
+    borderRadius: "6px",
+    padding: "4px 7px",
+    cursor: "pointer",
+    fontSize: "11px",
   },
 };

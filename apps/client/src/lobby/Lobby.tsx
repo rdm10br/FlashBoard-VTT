@@ -115,6 +115,7 @@ export function Lobby({
             error={adminError}
             onRefresh={onAdminRefresh}
             onSetCredentials={onAdminSetCredentials}
+            onShutdownServer={() => socket.send({ type: "SERVER_SHUTDOWN_REQUEST", payload: {} })}
           />
         )}
 

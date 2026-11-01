@@ -202,6 +202,22 @@ export function App({ socket, onSessionJoined }: AppProps) {
         return;
       }
 
+      if (data.type === "SESSION_LEFT") {
+        socket.forwardToGame({ type: "SCENE_CLEARED", payload: {} });
+        sessionRef.current = null;
+        setSession(null);
+        setCurrentSceneId(null);
+        setSceneMap(null);
+        setMeasurementConfig(null);
+        setSceneConfig(null);
+        setSessionAssets([]);
+        setAssetError(null);
+        setSessionError(null);
+        setAssetKey(null);
+        setScreen("lobby");
+        return;
+      }
+
       if (data.type === "SESSION_ERROR") {
         setSessionError(data.payload.message);
         return;

@@ -147,6 +147,8 @@ export type ClientMessage =
   | { type: "SESSION_CREATE"; payload: { name: string } }
   | { type: "SESSION_JOIN"; payload: { code: string } }
   | { type: "SESSION_ENTER"; payload: { session_id: string } }
+  | { type: "SESSION_LEAVE"; payload: {} }
+  | { type: "SERVER_SHUTDOWN_REQUEST"; payload: {} }
   | { type: "SESSION_SET_DEFAULT_TOKEN_ASSET"; payload: { asset_id: string | null } }
   | { type: "SESSION_MEMBERS_REQUEST"; payload: { session_id: string } }
   | { type: "INVITE_CREATE"; payload: CreateInvitePayload }
@@ -191,6 +193,8 @@ export type ServerMessage =
   | { type: "USER_STATE"; payload: { user_id: string; nickname: string; sessions: SessionSummary[]; auth_token: string; is_admin: boolean } }
   | { type: "USER_ERROR"; payload: { message: string } }
   | { type: "USER_LOGGED_OUT"; payload: {} }
+  | { type: "SESSION_LEFT"; payload: {} }
+  | { type: "SERVER_SHUTDOWN_ACCEPTED"; payload: {} }
   | { type: "ADMIN_USERS"; payload: { users: AdminUserSummary[] } }
   | { type: "SESSION_JOINED"; payload: SessionJoinedPayload }
   | { type: "SESSION_ERROR"; payload: { message: string } }

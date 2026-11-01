@@ -77,6 +77,8 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
       break;
     case "USER_LOGOUT":
     case "ADMIN_LIST_USERS":
+    case "SESSION_LEAVE":
+    case "SERVER_SHUTDOWN_REQUEST":
     case "BACKUP_IMPORT_GRANT_REQUEST":
       valid = isRecord(payload);
       break;

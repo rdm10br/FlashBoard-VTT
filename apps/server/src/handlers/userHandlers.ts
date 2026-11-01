@@ -4,6 +4,7 @@ import { getSessionsForUser } from "../db/index.js";
 import { getUserByIdForAdmin, listAdminUsers } from "../db/userRepo.js";
 import { send } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
+import { requestServerShutdown } from "../services/serverLifecycle.js";
 import {
   authenticate,
   hashPassword,
@@ -159,6 +160,19 @@ function handleAdminListUsers(_payload: {}, ctx: HandlerContext) {
   send(ws, { type: "ADMIN_USERS", payload: { users: listAdminUsers() } });
 }
 
+function handleServerShutdownRequest(_payload: {}, ctx: HandlerContext) {
+  const { state, ws } = ctx;
+  if (!state.is_admin) {
+    send(ws, { type: "USER_ERROR", payload: { message: "Apenas administradores podem encerrar o servidor VTT." } });
+    return;
+  }
+  if (!requestServerShutdown()) {
+    send(ws, { type: "USER_ERROR", payload: { message: "O encerramento do servidor não está disponível." } });
+    return;
+  }
+  send(ws, { type: "SERVER_SHUTDOWN_ACCEPTED", payload: {} });
+}
+
 async function handleAdminSetUserCredentials(
   payload: Extract<ClientMessage, { type: "ADMIN_SET_USER_CREDENTIALS" }>["payload"],
   ctx: HandlerContext,
@@ -207,6 +221,7 @@ export const userHandlers: Partial<Record<ClientMessage["type"], MessageHandler>
   USER_LOGOUT: handleUserLogout,
   ADMIN_LIST_USERS: handleAdminListUsers,
   ADMIN_SET_USER_CREDENTIALS: handleAdminSetUserCredentials,
+  SERVER_SHUTDOWN_REQUEST: handleServerShutdownRequest,
 };
 
 export { isAdminBootstrapAvailable };

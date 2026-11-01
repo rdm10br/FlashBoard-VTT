@@ -4,6 +4,7 @@ import { getAsset, getMembersForSession, getSessionByName, setDefaultTokenAsset 
 import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { setMemberScene } from "../db/index.js";
+import { refreshSceneParty } from "./sceneHandlers.js";
 import {
   buildSessionJoinedPayload,
   createSessionForUser,
@@ -128,6 +129,14 @@ export const sessionHandlers: Partial<Record<ClientMessage["type"], MessageHandl
   SESSION_CREATE: handleSessionCreate,
   SESSION_JOIN: handleSessionJoin,
   SESSION_ENTER: handleSessionEnter,
+  SESSION_LEAVE: (_payload, { state, ws }) => {
+    if (!state.session_id) return;
+    const sessionId = state.session_id;
+    clientRegistry.setSession(state, null);
+    state.role = "player";
+    refreshSceneParty(sessionId);
+    send(ws, { type: "SESSION_LEFT", payload: {} });
+  },
   SESSION_SET_DEFAULT_TOKEN_ASSET: handleSessionSetDefaultTokenAsset,
   SESSION_MEMBERS_REQUEST: (payload: { session_id: string }, { state, ws }) => {
     if (payload.session_id !== state.session_id) return;

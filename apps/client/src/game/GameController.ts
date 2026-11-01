@@ -33,7 +33,7 @@ export class GameController {
   private measurementKeep = false;
   private drawings = new Map<string, { data: SceneDrawing; graphic: PIXI.Graphics; label?: PIXI.Text }>();
   private selectedDrawingId: string | null = null;
-  private draft: { kind: SceneDrawingKind; points: number[]; graphic: PIXI.Graphics } | null = null;
+  private draft: { kind: SceneDrawingKind; points: number[]; graphic: PIXI.Graphics; label?: PIXI.Text } | null = null;
   private drawingDrag: { id: string; pointer: { x: number; y: number }; points: number[] } | null = null;
   private tokenOwners = new Map<string, string[]>();
   private tokenSheets = new Map<string, string>();
@@ -122,6 +122,7 @@ export class GameController {
         const nextTool = tool as typeof this.activeTool;
         if (nextTool !== this.activeTool && this.draft) {
           this.draft.graphic.destroy();
+          this.draft.label?.destroy();
           this.draft = null;
         }
         this.activeTool = nextTool;
@@ -262,7 +263,14 @@ export class GameController {
   private startDraft(kind: SceneDrawingKind, points: number[]) {
     const graphic = new PIXI.Graphics();
     this.drawingLayer.addChild(graphic);
-    this.draft = { kind, points, graphic };
+    const draft: NonNullable<typeof this.draft> = { kind, points, graphic };
+    if (kind === "measurement") {
+      draft.label = new PIXI.Text({ text: "0", style: { fontSize: 14, fill: "#ffffff", stroke: { color: "#111827", width: 3 } } });
+      draft.label.anchor.set(0.5);
+      this.drawingLayer.addChild(draft.label);
+    }
+    this.draft = draft;
+    this.renderDraft();
   }
 
   private clampWorldPoint(point: { x: number; y: number }) {
@@ -337,6 +345,10 @@ export class GameController {
     const points = [...this.draft.points];
     if (pointer && this.draft.kind === "polygon") points.push(pointer.x, pointer.y);
     this.paintGeometry(this.draft.graphic, this.draft.kind, points, false);
+    if (this.draft.kind === "measurement" && this.draft.label) {
+      this.draft.label.text = this.measurementLabel(this.draft.points);
+      this.draft.label.position.set((this.draft.points[0] + this.draft.points[2]) / 2, (this.draft.points[1] + this.draft.points[3]) / 2 - 14);
+    }
   }
 
   private finishDrawingGesture() {
@@ -354,6 +366,7 @@ export class GameController {
     const draft = this.draft;
     if (!draft) return;
     this.draft = null;
+    draft.label?.destroy();
     draft.graphic.destroy();
     const count = draft.points.length / 2;
     if ((draft.kind === "polygon" && count < 3) || (draft.kind !== "polygon" && count < 2) || !this.currentSceneId) return;
@@ -522,6 +535,7 @@ export class GameController {
     this.drawings.clear();
     this.selectedDrawingId = null;
     this.draft?.graphic.destroy();
+    this.draft?.label?.destroy();
     this.draft = null;
     this.drawingDrag = null;
     for (const ping of this.mapPings) ping.destroy({ children: true });

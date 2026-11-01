@@ -6,12 +6,14 @@ type AdminPanelProps = {
   error?: string | null;
   onRefresh: () => void;
   onSetCredentials: (userId: string, email: string, password: string) => void;
+  onShutdownServer: () => void;
 };
 
-export function AdminPanel({ users, error, onRefresh, onSetCredentials }: AdminPanelProps) {
+export function AdminPanel({ users, error, onRefresh, onSetCredentials, onShutdownServer }: AdminPanelProps) {
   const [selectedId, setSelectedId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [shutdownRequested, setShutdownRequested] = useState(false);
   const selectedUser = users.find((user) => user.id === selectedId) ?? users[0];
 
   useEffect(() => {
@@ -70,6 +72,19 @@ export function AdminPanel({ users, error, onRefresh, onSetCredentials }: AdminP
       )}
 
       {error && <p style={styles.error}>{error}</p>}
+      <div style={{ borderTop: "1px solid #2e303a", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        <strong style={{ color: "#fca5a5", fontSize: 13 }}>Servidor VTT</strong>
+        <p style={styles.note}>Encerra o servidor desta instância e desconecta todos os usuários. Os processos auxiliares iniciados junto com ele também serão encerrados pelos comandos padrão do projeto.</p>
+        <button
+          style={{ ...styles.button, background: "#7f1d1d" }}
+          disabled={shutdownRequested}
+          onClick={() => {
+            if (!window.confirm("Encerrar o servidor VTT agora e desconectar todos os usuários?")) return;
+            setShutdownRequested(true);
+            onShutdownServer();
+          }}
+        >{shutdownRequested ? "Encerramento solicitado…" : "Encerrar servidor VTT"}</button>
+      </div>
     </section>
   );
 }

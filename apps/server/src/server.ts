@@ -19,6 +19,7 @@ import { assetRoutes } from "./http/assetRoutes.js";
 import { backupRoutes } from "./http/backupRoutes.js";
 import { LIMITS } from "@vtt/protocol";
 import { refreshSceneParty } from "./handlers/sceneHandlers.js";
+import { registerShutdownCallback } from "./services/serverLifecycle.js";
 
 // Cria o equivalente ao __dirname de forma segura para ESM e multiplataforma
 const __filename = fileURLToPath(import.meta.url);
@@ -125,13 +126,22 @@ const start = async () => {
     });
   }, HEARTBEAT_INTERVAL);
 
+  let isShuttingDown = false;
   async function shutdown() {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     clearInterval(heartbeat);
-    wss.close();
+    for (const client of wss.clients) client.close(1001, "Servidor VTT encerrando");
+    const forceClose = setTimeout(() => {
+      for (const client of wss.clients) client.terminate();
+    }, 4000);
+    await new Promise<void>((resolve) => wss.close(() => resolve()));
+    clearTimeout(forceClose);
     await app.close();
     closeDatabase();
     process.exit(0);
   }
+  registerShutdownCallback(() => { void shutdown(); });
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
 
