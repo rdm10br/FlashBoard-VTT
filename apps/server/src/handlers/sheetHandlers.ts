@@ -1,7 +1,7 @@
 import type { ClientMessage, SheetAction, SheetTemplate } from "@vtt/protocol";
 import { LIMITS } from "@vtt/protocol";
 import type { HandlerContext, MessageHandler } from "./types.js";
-import { createCharacterSheet, getCharacterSheet, getCharacterSheets, getMembersForSession, getSheetTemplate, setSheetOwners, setSheetTemplate, updateCharacterSheet } from "../db/index.js";
+import { createCharacterSheet, getAsset, getCharacterSheet, getCharacterSheets, getMembersForSession, getSheetTemplate, setCharacterSheetImage, setSheetOwners, setSheetTemplate, updateCharacterSheet } from "../db/index.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { broadcastToScene, broadcastToSession, send, sendToSessionMembers } from "../ws/broadcast.js";
 import { handleChatCommand } from "../services/chatService.js";
@@ -62,6 +62,23 @@ function handleSheetOwnersSet(payload: { sheet_id: string; owner_user_ids: strin
     broadcastToScene(sceneId, { type: "TOKEN_OWNERS_CHANGED", payload: { scene_id: sceneId, tokens } });
   }
   refreshAccessibleSheetLists(ctx.state.session_id!);
+}
+
+function handleSheetAssetSet(payload: { sheet_id: string; asset_id: string | null }, ctx: HandlerContext) {
+  const sheet = getCharacterSheet(payload.sheet_id);
+  if (!sheet || sheet.session_id !== ctx.state.session_id || !canReadSheet(sheet, ctx.state)) return;
+  if (payload.asset_id !== null) {
+    const asset = getAsset(payload.asset_id);
+    if (!asset || asset.session_id !== sheet.session_id || asset.kind !== "token_image") {
+      send(ctx.ws, { type: "SESSION_ERROR", payload: { message: "Imagem inválida para esta ficha." } }); return;
+    }
+  }
+  const updated = setCharacterSheetImage(sheet.id, payload.asset_id);
+  if (!updated) return;
+  for (const token of updated.tokens) {
+    broadcastToScene(token.scene_id, { type: "TOKEN_ASSET_CHANGED", payload: { id: token.token_id, asset_id: updated.image_asset_id } });
+  }
+  refreshAccessibleSheetLists(sheet.session_id);
 }
 
 function handleTemplateSet(payload: SheetTemplate, ctx: HandlerContext) {
@@ -136,6 +153,7 @@ export const sheetHandlers: Partial<Record<ClientMessage["type"], MessageHandler
   SHEETS_LIST_REQUEST: handleSheetsList,
   SHEET_CREATE: handleSheetCreate,
   SHEET_OWNERS_SET: handleSheetOwnersSet,
+  SHEET_ASSET_SET: handleSheetAssetSet,
   SHEET_TEMPLATE_SET: handleTemplateSet,
   SHEET_UPDATE: handleSheetUpdate,
   SHEET_ACTION: handleSheetAction,

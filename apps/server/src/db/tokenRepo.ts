@@ -7,9 +7,9 @@ export function createToken(sceneId: string, x: number, y: number, assetId?: str
     const scene = db.prepare("SELECT session_id FROM scenes WHERE id = ?").get(sceneId) as { session_id: string } | undefined;
     if (!scene) throw new Error("Scene not found");
     const actualSheetId = sheetId ?? generateId("sheet");
-    if (!sheetId) db.prepare("INSERT INTO character_sheets(id, session_id, name) VALUES (?, ?, ?)").run(actualSheetId, scene.session_id, "Ficha");
-    const inheritedAsset = sheetId ? (db.prepare("SELECT asset_id FROM tokens WHERE sheet_id=? AND asset_id IS NOT NULL ORDER BY rowid LIMIT 1").get(actualSheetId) as { asset_id: string } | undefined)?.asset_id : undefined;
-    db.prepare("INSERT INTO tokens (id, scene_id, asset_id, owner_user_id, x, y, sheet_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? inheritedAsset ?? null, ownerUserId ?? null, x, y, actualSheetId);
+    if (!sheetId) db.prepare("INSERT INTO character_sheets(id, session_id, name, image_asset_id) VALUES (?, ?, ?, ?)").run(actualSheetId, scene.session_id, "Ficha", assetId ?? null);
+    const sheetImage = (db.prepare("SELECT image_asset_id FROM character_sheets WHERE id=?").get(actualSheetId) as { image_asset_id: string | null } | undefined)?.image_asset_id ?? null;
+    db.prepare("INSERT INTO tokens (id, scene_id, asset_id, owner_user_id, x, y, sheet_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run(id, sceneId, sheetImage, ownerUserId ?? null, x, y, actualSheetId);
     if (ownerUserId) db.prepare("INSERT OR IGNORE INTO character_sheet_owners(sheet_id, user_id) VALUES (?, ?)").run(actualSheetId, ownerUserId);
   });
   create();
@@ -37,7 +37,7 @@ export function setTokenOwners(tokenIds: string[], userIds: string[]) {
 }
 
 export function getToken(id: string) {
-  const token = db.prepare("SELECT * FROM tokens WHERE id = ?").get(id) as
+  const token = db.prepare("SELECT t.id,t.scene_id,cs.image_asset_id AS asset_id,t.x,t.y,t.owner_user_id,t.sheet_id FROM tokens t JOIN character_sheets cs ON cs.id=t.sheet_id WHERE t.id = ?").get(id) as
   | { id: string; scene_id: string; asset_id: string | null; x: number; y: number; owner_user_id: string | null; sheet_id: string }
     | undefined;
   return token ? withOwners(token) : undefined;
@@ -45,8 +45,7 @@ export function getToken(id: string) {
 
 export function getTokensForScene(sceneId: string) {
   const tokens = db.prepare(
-    // "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
-    "SELECT * FROM tokens WHERE scene_id = ? ORDER BY rowid"
+    "SELECT t.id,t.x,t.y,cs.image_asset_id AS asset_id,t.owner_user_id,t.sheet_id,t.updated_at AS created_at FROM tokens t JOIN character_sheets cs ON cs.id=t.sheet_id WHERE t.scene_id = ? ORDER BY t.rowid"
   ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; owner_user_id: string | null; sheet_id: string; created_at: number }[];
   return tokens.map(withOwners);
 }
@@ -72,5 +71,5 @@ export function deleteToken(id: string) {
 }
 
 export function setTokenAsset(id: string, assetId: string): void {
-  db.prepare("UPDATE tokens SET asset_id = ?, updated_at = unixepoch() WHERE id = ?").run(assetId, id);
+  db.prepare("UPDATE character_sheets SET image_asset_id=?,updated_at=unixepoch() WHERE id=(SELECT sheet_id FROM tokens WHERE id=?)").run(assetId, id);
 }

@@ -256,6 +256,18 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    name: "character-sheet-owns-token-image",
+    up(db) {
+      db.exec(`
+        ALTER TABLE character_sheets ADD COLUMN image_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL;
+        UPDATE character_sheets SET image_asset_id = (
+          SELECT asset_id FROM tokens WHERE tokens.sheet_id = character_sheets.id AND asset_id IS NOT NULL ORDER BY rowid LIMIT 1
+        );
+      `);
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

@@ -25,7 +25,7 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
     return;
   }
   const defaultAssetId = getSession(state.session_id!)?.default_token_asset_id ?? undefined;
-  const assetId = payload.asset_id ?? defaultAssetId;
+  const assetId = payload.sheet_id ? undefined : payload.asset_id ?? defaultAssetId;
   if (!isTokenImageFromCurrentSession(assetId, state.session_id!)) {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Imagem de token inválida para esta sessão." } });
     return;
@@ -119,7 +119,8 @@ function handleTokenSetAsset(payload: { id: string; asset_id: string }, ctx: Han
   }
 
   setTokenAssetOnToken(token.id, payload.asset_id);
-  broadcastToScene(token.scene_id, { type: "TOKEN_ASSET_CHANGED", payload: { id: token.id, asset_id: payload.asset_id } });
+  const sheet = getCharacterSheet(token.sheet_id);
+  for (const instance of sheet?.tokens ?? []) broadcastToScene(instance.scene_id, { type: "TOKEN_ASSET_CHANGED", payload: { id: instance.token_id, asset_id: payload.asset_id } });
 }
 
 function handleTokenDelete(payload: { id: string }, ctx: HandlerContext) {

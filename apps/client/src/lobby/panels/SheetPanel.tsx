@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CharacterSheet, Member, Role, ServerMessage, SheetTemplate } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
+import { ASSET_UPLOAD_URL, assetUrl } from "../../network/apiBase";
 
 const FALLBACK_TEMPLATE: SheetTemplate = {
   html: '<h2 data-sheet-name></h2><label>Força <input data-field="strength" type="number" value="0"></label><button data-vtt-action="attack">Ataque</button>',
@@ -10,6 +11,8 @@ const FALLBACK_TEMPLATE: SheetTemplate = {
 
 export function SheetPanel({ sessionId, role, socket }: { sessionId: string; role: Role; socket: SocketManager }) {
   const frame = useRef<HTMLIFrameElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const pendingImageSheetId = useRef<string | null>(null);
   const dirty = useRef(false);
   const [sheets, setSheets] = useState<CharacterSheet[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -20,6 +23,7 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
   const [status, setStatus] = useState("");
   const [members, setMembers] = useState<Member[]>([]);
   const [newSheetName, setNewSheetName] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const selected = sheets.find((sheet) => sheet.id === selectedId) ?? sheets[0];
   const selectedRef = useRef(selected);
   const selectedIdRef = useRef(selectedId);
@@ -51,6 +55,31 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
     if (role === "gm") socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id: sessionId } });
     return () => { window.removeEventListener("vtt-sheets-list", onList); window.removeEventListener("vtt-sheet-template", onTemplate); window.removeEventListener("vtt-sheet-changed", onChanged); window.removeEventListener("message", onMessage); window.removeEventListener("vtt-session-members", onMembers); };
   }, [sessionId, role, socket]);
+
+  useEffect(() => {
+    socket.setAssetUploadHandler("token_image", (data) => {
+      if (data.type !== "BACKUP_GRANT_ISSUED" || data.payload.kind !== "asset_upload") return;
+      const file = imageInput.current?.files?.[0] ?? imageFile;
+      const sheetId = pendingImageSheetId.current;
+      if (!file || !sheetId) return;
+      void (async () => {
+        try {
+          setStatus("Enviando imagem da ficha…");
+          const form = new FormData(); form.append("file", file);
+          const query = new URLSearchParams({ token: data.payload.token, session_id: sessionId, kind: "token_image" });
+          const response = await fetch(`${ASSET_UPLOAD_URL}?${query}`, { method: "POST", body: form });
+          const result = await response.json() as { id?: string; error?: string };
+          if (!response.ok || !result.id) throw new Error(result.error ?? "Falha ao enviar imagem.");
+          socket.send({ type: "SHEET_ASSET_SET", payload: { sheet_id: sheetId, asset_id: result.id } });
+          setStatus("Imagem da ficha atualizada."); setImageFile(null);
+          if (imageInput.current) imageInput.current.value = "";
+        } catch (error) {
+          setStatus(error instanceof Error ? error.message : "Falha ao enviar imagem.");
+        } finally { pendingImageSheetId.current = null; }
+      })();
+    });
+    return () => socket.setAssetUploadHandler("token_image", null);
+  }, [sessionId, socket, imageFile]);
 
   const srcDoc = useMemo(() => {
     const nonce = `sheet-${selectedId ?? "none"}`;
@@ -98,6 +127,13 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
     socket.send({ type: "SHEET_OWNERS_SET", payload: { sheet_id: selected.id, owner_user_ids: ownerIds } });
   }
 
+  function uploadSheetImage() {
+    if (!selected || !imageFile) { setStatus("Escolha uma imagem PNG, JPG ou WebP."); return; }
+    pendingImageSheetId.current = selected.id;
+    setStatus("Solicitando autorização para alterar a imagem da ficha…");
+    socket.send({ type: "ASSET_UPLOAD_GRANT_REQUEST", payload: { session_id: sessionId, asset_kind: "token_image" } });
+  }
+
   return <div style={{ display: "flex", flexDirection: "column", gap: 8, color: "#d1d5db", fontSize: 12 }}>
     <strong style={{ color: "#f3f4f6" }}>Fichas</strong>
     {role === "gm" && <details>
@@ -119,6 +155,17 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
           <strong>Owners</strong>
           {role === "gm" ? <div style={{ display: "flex", flexDirection: "column", maxHeight: 100, overflowY: "auto" }}>{members.filter((member) => member.role === "player").map((member) => <label key={member.id}><input type="checkbox" checked={selected.owner_user_ids.includes(member.id)} onChange={(event) => toggleOwner(member.id, event.target.checked)} /> {member.nickname}</label>)}</div> : <div>{selected.owner_user_ids.length ? "Você é owner desta ficha" : ""}</div>}
           {!!selected.tokens.length && <small style={{ color: "#9ca3af" }}>Tokens em: {[...new Set(selected.tokens.map((token) => token.scene_name))].join(", ")}</small>}
+        </div>
+        <div style={{ border: "1px solid #343744", borderRadius: 5, padding: 7 }}>
+          <strong>Imagem da ficha</strong>
+          {selected.image_asset_id ? <img src={assetUrl(selected.image_asset_id)} alt={`Imagem de ${selected.name}`} style={{ display: "block", width: 72, height: 72, objectFit: "cover", borderRadius: 8, margin: "6px 0" }} /> : <div style={{ color: "#9ca3af", margin: "6px 0" }}>Sem imagem definida</div>}
+          {role !== "viewer" && <>
+            <input ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} style={{ color: "#9ca3af", width: "100%" }} />
+            <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <button style={buttonStyle} disabled={!imageFile} onClick={uploadSheetImage}>Alterar imagem</button>
+              {selected.image_asset_id && <button style={buttonStyle} onClick={() => socket.send({ type: "SHEET_ASSET_SET", payload: { sheet_id: selected.id, asset_id: null } })}>Remover imagem</button>}
+            </div>
+          </>}
         </div>
         <iframe ref={frame} key={selected.id} title={`Ficha ${selected.name}`} sandbox="allow-scripts" srcDoc={srcDoc} onLoad={() => frame.current?.contentWindow?.postMessage({ __vttSheet: `sheet-${selected.id}`, type: "init", name: selected.name, data: selected.data }, "*")} style={{ width: "100%", height: 360, background: "#181a22", border: "1px solid #343744", borderRadius: 6 }} />
       </>}

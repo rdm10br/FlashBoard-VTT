@@ -117,6 +117,7 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SHEETS_LIST_REQUEST": valid = isRecord(payload); break;
     case "SHEET_CREATE": valid = isRecord(payload) && hasString(payload, "name", LIMITS.name); break;
     case "SHEET_OWNERS_SET": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && Array.isArray(payload.owner_user_ids) && payload.owner_user_ids.length <= 100 && payload.owner_user_ids.every((id) => isString(id, 256)); break;
+    case "SHEET_ASSET_SET": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && (payload.asset_id === null || hasString(payload, "asset_id", 256)); break;
     case "SHEET_TEMPLATE_SET": valid = isSheetTemplate(payload); break;
     case "SHEET_UPDATE": valid = isRecord(payload) && hasString(payload, "id", 256) && hasString(payload, "name", LIMITS.name) && isSheetData(payload.data); break;
     case "SHEET_ACTION": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && hasString(payload, "action_id", 80) && isSheetData(payload.data); break;

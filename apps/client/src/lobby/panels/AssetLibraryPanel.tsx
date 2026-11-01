@@ -12,7 +12,7 @@ export function AssetLibraryPanel({ assets, error, socket }: AssetLibraryPanelPr
   function requestDelete(asset: SessionAsset) {
     const kind = asset.kind === "map_image" ? "mapa" : "imagem de token";
     const confirmed = window.confirm(
-      `Excluir ${kind} “${asset.filename}”? Se estiver em uso, ele será removido dos mapas, tokens e imagem padrão da sessão.`,
+      `Excluir ${kind} “${asset.filename}”? Se estiver em uso, ele será removido dos mapas, fichas e imagem padrão da sessão.`,
     );
     if (!confirmed) return;
     socket.send({ type: "ASSET_DELETE_REQUEST", payload: { asset_id: asset.id } });
@@ -24,7 +24,7 @@ export function AssetLibraryPanel({ assets, error, socket }: AssetLibraryPanelPr
         <p style={styles.title}>Arquivos da sessão</p>
         <span style={styles.count}>{assets.length}</span>
       </div>
-      <p style={styles.note}>Exclusão também remove o arquivo dos mapas, tokens e padrão da sessão, quando estiver associado.</p>
+      <p style={styles.note}>Exclusão também remove o arquivo dos mapas, fichas e padrão da sessão, quando estiver associado.</p>
       {assets.length === 0 ? (
         <p style={styles.note}>Nenhum arquivo enviado.</p>
       ) : (

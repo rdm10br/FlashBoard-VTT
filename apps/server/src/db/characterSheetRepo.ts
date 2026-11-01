@@ -25,12 +25,12 @@ export function setSheetTemplate(sessionId: string, template: SheetTemplate) {
 export type StoredCharacterSheet = CharacterSheet & { session_id: string };
 
 export function getCharacterSheet(id: string): StoredCharacterSheet | undefined {
-  const row = db.prepare("SELECT id,session_id,name,data_json FROM character_sheets WHERE id=?").get(id) as { id: string; session_id: string; name: string; data_json: string } | undefined;
+  const row = db.prepare("SELECT id,session_id,name,data_json,image_asset_id FROM character_sheets WHERE id=?").get(id) as { id: string; session_id: string; name: string; data_json: string; image_asset_id: string | null } | undefined;
   if (!row) return undefined;
   const owners = db.prepare("SELECT user_id FROM character_sheet_owners WHERE sheet_id=? ORDER BY created_at,user_id").all(row.id) as { user_id: string }[];
   const tokens = db.prepare(`SELECT t.id AS token_id,t.scene_id,s.name AS scene_name,t.x,t.y FROM tokens t
     JOIN scenes s ON s.id=t.scene_id WHERE t.sheet_id=? ORDER BY s.sort_order,s.created_at,t.rowid`).all(row.id) as StoredCharacterSheet["tokens"];
-  return { id: row.id, session_id: row.session_id, name: row.name, data: JSON.parse(row.data_json) as Record<string, string>, owner_user_ids: owners.map((owner) => owner.user_id), tokens };
+  return { id: row.id, session_id: row.session_id, name: row.name, data: JSON.parse(row.data_json) as Record<string, string>, image_asset_id: row.image_asset_id, owner_user_ids: owners.map((owner) => owner.user_id), tokens };
 }
 
 export function getCharacterSheets(sessionId: string): StoredCharacterSheet[] {
@@ -49,6 +49,11 @@ export function createCharacterSheet(sessionId: string, name: string) {
   const id = generateId("sheet");
   db.prepare("INSERT INTO character_sheets(id,session_id,name) VALUES(?,?,?)").run(id, sessionId, name);
   return getCharacterSheet(id)!;
+}
+
+export function setCharacterSheetImage(sheetId: string, assetId: string | null) {
+  db.prepare("UPDATE character_sheets SET image_asset_id=?,updated_at=unixepoch() WHERE id=?").run(assetId, sheetId);
+  return getCharacterSheet(sheetId);
 }
 
 export function setSheetOwners(sheetId: string, userIds: string[]) {

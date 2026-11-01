@@ -31,7 +31,7 @@ type SessionInfoProps = {
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, scenes, party, party_scene_id, assets, assetError, default_token_asset_id, current_scene_id, map, sceneConfig, measurementConfig, socket, chat }: SessionInfoProps) {
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, scenes, party, party_scene_id, assets, assetError, current_scene_id, map, sceneConfig, measurementConfig, socket, chat }: SessionInfoProps) {
   const [activeTab, setActiveTab] = useState<"session" | "scenes" | "tokens" | "chat" | "map" | "tools">(() => (role === "gm" ? "session" : role === "viewer" ? "scenes" : "tokens"));
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -97,7 +97,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
       <AssetLibraryPanel assets={assets} error={assetError} socket={socket} />
     </>
   ) : null;
-  const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
+  const tokenPanelElement = <TokenPanel role={role} />;
   const sheetPanelElement = <><SheetPanel sessionId={session_id} role={role} socket={socket} />{tokenPanelElement}</>;
   const mapPanelElement = role === "gm"
     ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} sceneConfig={sceneConfig} measurementConfig={measurementConfig} socket={socket} />

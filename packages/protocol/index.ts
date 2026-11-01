@@ -30,7 +30,7 @@ export type Scene = {
 export type ScenePartyMember = { user_id: string; nickname: string; role: Role; scene_id: string | null; online: boolean };
 export type SheetAction = { id: string; label: string; kind: "roll" | "chat" | "map"; expression?: string; text?: string; operation?: "ping" };
 export type SheetTemplate = { html: string; css: string; actions: SheetAction[] };
-export type CharacterSheet = { id: string; name: string; data: Record<string, string>; owner_user_ids: string[]; tokens: { token_id: string; scene_id: string; scene_name: string; x: number; y: number }[] };
+export type CharacterSheet = { id: string; name: string; data: Record<string, string>; image_asset_id: string | null; owner_user_ids: string[]; tokens: { token_id: string; scene_id: string; scene_name: string; x: number; y: number }[] };
 
 export type SessionSummary = {
   id: string;
@@ -163,6 +163,7 @@ export type ClientMessage =
   | { type: "SHEET_ACTION"; payload: { sheet_id: string; action_id: string; data: Record<string, string> } }
   | { type: "SHEET_CREATE"; payload: { name: string } }
   | { type: "SHEET_OWNERS_SET"; payload: { sheet_id: string; owner_user_ids: string[] } }
+  | { type: "SHEET_ASSET_SET"; payload: { sheet_id: string; asset_id: string | null } }
   | { type: "SCENE_SWITCH"; payload: { scene_id: string } }
   | { type: "SCENE_PUSH"; payload: { scene_id: string } }
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
