@@ -3,7 +3,7 @@ import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
-import type { ChatMessage, InviteCodeSummary, Role, ServerMessage  } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, ServerMessage, SessionAsset } from "@vtt/protocol";
 import type { ConnectionStatus } from "./network/socket";
 import { setAssetKey } from "./network/apiBase";
 
@@ -45,6 +45,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUserSummary[]>([]);
+  const [sessionAssets, setSessionAssets] = useState<SessionAsset[]>([]);
+  const [assetError, setAssetError] = useState<string | null>(null);
   const [adminBootstrapAvailable, setAdminBootstrapAvailable] = useState(false);
   const [connStatus, setConnStatus] = useState<ConnectionStatus>("connecting");
   const sessionRef = useRef<SessionData | null>(null);
@@ -65,6 +67,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
     setUserError(null);
     setSessionError(null);
     setAdminError(null);
+    setSessionAssets([]);
+    setAssetError(null);
     setScreen("login");
     // setAssetKey(null);
   }
@@ -131,6 +135,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
         clearAuthToken();
         sessionRef.current = null;
         setAdminUsers([]);
+        setSessionAssets([]);
+        setAssetError(null);
         setSession(null);
         setUser(null);
         setUserError(null);
@@ -164,9 +170,15 @@ export function App({ socket, onSessionJoined }: AppProps) {
         };
         sessionRef.current = nextSession;
         setSession(nextSession);
+        setSessionAssets([]);
+        setAssetError(null);
 
         setScreen("game");
         onSessionJoined(session_id, member.role);
+
+        if (member.role === "gm") {
+          socket.send({ type: "ASSET_LIST_REQUEST", payload: { session_id } });
+        }
 
         if (scenes.length === 0 && member.role === "gm") {
           socket.send({ type: "SCENE_CREATE", payload: { name: "Cena 1" } });
@@ -233,6 +245,36 @@ export function App({ socket, onSessionJoined }: AppProps) {
 
       if (data.type === "SESSION_DEFAULT_TOKEN_ASSET_CHANGED") {
         setSession((prev) => prev ? { ...prev, default_token_asset_id: data.payload.asset_id } : prev);
+        return;
+      }
+
+      if (data.type === "ASSET_LIST") {
+        if (sessionRef.current?.session_id === data.payload.session_id) {
+          setSessionAssets(data.payload.assets);
+          setAssetError(null);
+        }
+        return;
+      }
+
+      if (data.type === "ASSET_CREATED") {
+        if (sessionRef.current?.session_id === data.payload.session_id) {
+          setSessionAssets((assets) => assets.some((asset) => asset.id === data.payload.asset.id)
+            ? assets
+            : [...assets, data.payload.asset]);
+        }
+        return;
+      }
+
+      if (data.type === "ASSET_DELETED") {
+        if (sessionRef.current?.session_id === data.payload.session_id) {
+          setSessionAssets((assets) => assets.filter((asset) => asset.id !== data.payload.asset_id));
+          setAssetError(null);
+        }
+        return;
+      }
+
+      if (data.type === "ASSET_ERROR") {
+        setAssetError(data.payload.message);
         return;
       }
 
@@ -328,6 +370,8 @@ export function App({ socket, onSessionJoined }: AppProps) {
           nickname={session.nickname}
           role={session.role}
           invite_codes={session.invite_codes}
+          assets={sessionAssets}
+          assetError={assetError}
           default_token_asset_id={session.default_token_asset_id}
           current_scene_id={currentSceneId}
           map={sceneMap}

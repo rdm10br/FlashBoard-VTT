@@ -38,6 +38,31 @@ export function getAssetsForSession(sessionId: string): Asset[] {
   return db.prepare("SELECT * FROM assets WHERE session_id = ? ORDER BY created_at").all(sessionId) as Asset[];
 }
 
-export function deleteAsset(id: string): void {
-  db.prepare("DELETE FROM assets WHERE id = ?").run(id);
+export type DeletedAsset = {
+  asset: Asset;
+  tokenReferences: { id: string; scene_id: string }[];
+  mapSceneIds: string[];
+  clearsDefaultToken: boolean;
+};
+
+export function deleteAsset(id: string): DeletedAsset | undefined {
+  const remove = db.transaction(() => {
+    const asset = getAsset(id);
+    if (!asset) return undefined;
+
+    const tokenReferences = db.prepare(
+      "SELECT id, scene_id FROM tokens WHERE asset_id = ?",
+    ).all(id) as { id: string; scene_id: string }[];
+    const mapSceneIds = (db.prepare(
+      "SELECT id FROM scenes WHERE map_asset_id = ?",
+    ).all(id) as { id: string }[]).map((scene) => scene.id);
+    const clearsDefaultToken = db.prepare(
+      "SELECT 1 FROM sessions WHERE default_token_asset_id = ? LIMIT 1",
+    ).get(id) !== undefined;
+
+    db.prepare("DELETE FROM assets WHERE id = ?").run(id);
+    return { asset, tokenReferences, mapSceneIds, clearsDefaultToken };
+  });
+
+  return remove.immediate();
 }

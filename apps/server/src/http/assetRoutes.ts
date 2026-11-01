@@ -6,7 +6,8 @@ import { createWriteStream } from "fs";
 import { pipeline } from "stream/promises";
 import { consumeGrant } from "../state/grants.js";
 import { UPLOADS_DIR, ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "../storage/uploads.js";
-import { createAsset, getAsset, getSession } from "../db/index.js";
+import { createAsset, getAsset, getSession, type Asset } from "../db/index.js";
+import { broadcastToSession } from "../ws/broadcast.js";
 
 export async function assetRoutes(app: FastifyInstance) {
   app.post("/api/assets/upload", async (request, reply) => {
@@ -58,15 +59,33 @@ export async function assetRoutes(app: FastifyInstance) {
       return { error: `Arquivo excede o limite de ${MAX_UPLOAD_BYTES / 1024 / 1024}MB.` };
     }
 
-    const stats = await fs.promises.stat(diskPath);
+    let asset: Asset;
+    try {
+      const stats = await fs.promises.stat(diskPath);
+      asset = createAsset({
+        sessionId: session_id,
+        kind,
+        filename: file.filename,
+        path: diskName,
+        mimeType: file.mimetype,
+        sizeBytes: stats.size,
+      });
+    } catch (error) {
+      await fs.promises.unlink(diskPath).catch(() => {});
+      throw error;
+    }
 
-    const asset = createAsset({
-      sessionId: session_id,
-      kind,
-      filename: file.filename,
-      path: diskName,
-      mimeType: file.mimetype,
-      sizeBytes: stats.size,
+    const summary = {
+      id: asset.id,
+      kind: asset.kind as "token_image" | "map_image",
+      filename: asset.filename,
+      mime_type: asset.mime_type,
+      size_bytes: asset.size_bytes,
+      created_at: asset.created_at,
+    };
+    broadcastToSession(session_id, {
+      type: "ASSET_CREATED",
+      payload: { session_id, asset: summary },
     });
 
     return { id: asset.id, filename: asset.filename, size_bytes: asset.size_bytes };

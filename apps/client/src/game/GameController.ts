@@ -199,7 +199,8 @@ export class GameController {
     }
 
     if (data.type === "TOKEN_ASSET_CHANGED") {
-      void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
+      if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
+      else this.tokens.clearImage(data.payload.id);
     }
 
     if (data.type === "TOKEN_DELETED") {

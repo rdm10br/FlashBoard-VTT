@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
-import type { ClientMessage } from "@vtt/protocol";
+import { parseClientMessage } from "@vtt/protocol";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
@@ -172,17 +172,18 @@ const start = async () => {
 
     ws.on("message", (raw) => {
       const text = raw.toString();
-      let data: ClientMessage;
+      let input: unknown;
 
       try {
-        data = JSON.parse(text) as ClientMessage;
+        input = JSON.parse(text);
       } catch {
         console.warn("Mensagem inválida recebida (JSON inválido), ignorando.");
         return;
       }
 
-      if (!data || typeof data !== "object" || typeof data.type !== "string") {
-        console.warn("Mensagem sem formato esperado (type ausente), ignorando.");
+      const data = parseClientMessage(input);
+      if (!data) {
+        console.warn("Mensagem inválida recebida (tipo ou payload fora do protocolo), ignorando.");
         return;
       }
 

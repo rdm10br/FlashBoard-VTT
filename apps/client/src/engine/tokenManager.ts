@@ -5,6 +5,7 @@ export class TokenManager {
   private layer: PIXI.Container;
   private ids = new Map<PIXI.Container, string>();
   private visuals = new Map<string, PIXI.Sprite>();
+  private imageVersions = new Map<string, number>();
 
   constructor(layer: PIXI.Container) {
     this.layer = layer;
@@ -26,6 +27,7 @@ export class TokenManager {
     this.tokens.set(id, token);
     this.ids.set(token, id);
     this.visuals.set(id, fallback);
+    this.imageVersions.set(id, 0);
 
     return token;
   }
@@ -49,6 +51,8 @@ export class TokenManager {
   async setImage(id: string, url: string) {
     const token = this.tokens.get(id);
     if (!token) return;
+    const version = (this.imageVersions.get(id) ?? 0) + 1;
+    this.imageVersions.set(id, version);
 
     try {
       // A rota de assets é /assets/:id e não carrega uma extensão no URL.
@@ -67,7 +71,7 @@ export class TokenManager {
       });
       const texture = PIXI.Texture.from(image);
       // A cena pode ter mudado enquanto a imagem carregava.
-      if (this.tokens.get(id) !== token) return;
+      if (this.tokens.get(id) !== token || this.imageVersions.get(id) !== version) return;
 
       this.visuals.get(id)?.destroy();
       const sprite = new PIXI.Sprite(texture);
@@ -79,6 +83,18 @@ export class TokenManager {
       console.error("Não foi possível carregar a imagem do token.", error);
     }
   }
+
+  clearImage(id: string) {
+    const token = this.tokens.get(id);
+    if (!token) return;
+    this.imageVersions.set(id, (this.imageVersions.get(id) ?? 0) + 1);
+    this.visuals.get(id)?.destroy();
+    const fallback = new PIXI.Sprite(PIXI.Texture.WHITE);
+    fallback.width = 50;
+    fallback.height = 50;
+    token.addChildAt(fallback, 0);
+    this.visuals.set(id, fallback);
+  }
   
   remove(id: string) {
     const token = this.tokens.get(id);
@@ -88,6 +104,7 @@ export class TokenManager {
     this.tokens.delete(id);
     this.ids.delete(token);
     this.visuals.delete(id);
+    this.imageVersions.delete(id);
   }
 
   clear() {
@@ -98,5 +115,6 @@ export class TokenManager {
     this.tokens.clear();
     this.ids.clear();
     this.visuals.clear();
+    this.imageVersions.clear();
   }
 }

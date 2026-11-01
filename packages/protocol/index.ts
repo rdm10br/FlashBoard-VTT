@@ -1,6 +1,15 @@
 export type Role = "gm" | "player" | "viewer";
 export type UploadAssetKind = "token_image" | "map_image";
 
+export type SessionAsset = {
+  id: string;
+  kind: UploadAssetKind;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: number;
+};
+
 export type Token = {
   id: string;
   x: number;
@@ -126,6 +135,8 @@ export type ClientMessage =
   | { type: "BACKUP_EXPORT_REQUEST"; payload: { session_id: string } }
   | { type: "BACKUP_IMPORT_GRANT_REQUEST"; payload: {} }
   | { type: "ASSET_UPLOAD_GRANT_REQUEST"; payload: { session_id: string; asset_kind?: "token_image" | "map_image" } }
+  | { type: "ASSET_LIST_REQUEST"; payload: { session_id: string } }
+  | { type: "ASSET_DELETE_REQUEST"; payload: { asset_id: string } }
   | { type: "CHAT_SEND"; payload: { text: string } };
 // --- Mensagens Server → Client ---
 
@@ -148,9 +159,13 @@ export type ServerMessage =
   | { type: "SCENE_CONFIG_CHANGED"; payload: { scene_id: string; config: SceneConfig } }
   | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
-  | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string } }
+  | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string | null } }
   | { type: "TOKEN_DELETED"; payload: { id: string } }
   | { type: "BACKUP_GRANT_ISSUED"; payload: { token: string; expires_at: number; kind: "export" | "import" | "asset_upload"; asset_kind?: "token_image" | "map_image" } }
+  | { type: "ASSET_LIST"; payload: { session_id: string; assets: SessionAsset[] } }
+  | { type: "ASSET_CREATED"; payload: { session_id: string; asset: SessionAsset } }
+  | { type: "ASSET_DELETED"; payload: { session_id: string; asset_id: string } }
+  | { type: "ASSET_ERROR"; payload: { message: string } }
   | { type: "CHAT_RECEIVE"; payload: ChatMessage };
 
 export type Message = ClientMessage | ServerMessage;
@@ -174,3 +189,5 @@ export type SceneState = {
   map: SceneMap | null;
   config: SceneConfig;
 };
+
+export * from "./validation.js";

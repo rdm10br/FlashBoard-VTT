@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Role, SceneMap } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneMap, SessionAsset } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
 import { ChatPanel } from "./panels/ChatPanel";
 import { MapPanel } from "./panels/MapPanel";
 import { FloatingPanel } from "./panels/FloatingPanel";
+import { AssetLibraryPanel } from "./panels/AssetLibraryPanel";
 
 type SessionInfoProps = {
   session_id: string;
@@ -13,6 +14,8 @@ type SessionInfoProps = {
   nickname: string;
   role: Role;
   invite_codes: InviteCodeSummary[];
+  assets: SessionAsset[];
+  assetError: string | null;
   default_token_asset_id: string | null;
   current_scene_id: string | null;
   map: SceneMap | null;
@@ -20,7 +23,7 @@ type SessionInfoProps = {
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, default_token_asset_id, current_scene_id, map, socket, chat }: SessionInfoProps) {
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, assets, assetError, default_token_asset_id, current_scene_id, map, socket, chat }: SessionInfoProps) {
   const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat" | "map">(() => (role === "gm" ? "session" : "tokens"));
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -80,8 +83,11 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   }
 
   // Cada painel é criado uma única vez — só muda de lugar (docked ou floating) conforme detachedTab.
-  const invitePanelElement = role === "gm" ? (
-    <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
+  const sessionPanelElement = role === "gm" ? (
+    <>
+      <InvitePanel session_id={session_id} invite_codes={invite_codes} socket={socket} />
+      <AssetLibraryPanel assets={assets} error={assetError} socket={socket} />
+    </>
   ) : null;
   const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
   const mapPanelElement = role === "gm"
@@ -166,7 +172,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
           </div>
         </div>
 
-        {activeTab === "session" && detachedTab !== "session" && invitePanelElement}
+        {activeTab === "session" && detachedTab !== "session" && sessionPanelElement}
         {activeTab === "map" && detachedTab !== "map" && mapPanelElement}
         {activeTab === "tokens" && detachedTab !== "tokens" && tokenPanelElement}
         {activeTab === "chat" && detachedTab !== "chat" && chatPanelElement}
@@ -174,7 +180,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
 
       {detachedTab && (
         <FloatingPanel onClose={() => setDetachedTab(null)} title={detachedTab}>
-          {detachedTab === "session" && invitePanelElement}
+          {detachedTab === "session" && sessionPanelElement}
           {detachedTab === "map" && mapPanelElement}
           {detachedTab === "tokens" && tokenPanelElement}
           {detachedTab === "chat" && chatPanelElement}
