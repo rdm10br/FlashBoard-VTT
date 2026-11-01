@@ -18,13 +18,14 @@ export class GameController {
   private maps!: SceneMapLayer;
   private camera!: Camera;
   private drawingLayer!: PIXI.Container;
+  private selectionGraphics!: PIXI.Graphics;
   private socket: SocketManager;
 
   private currentSceneId: string | null = null;
   private canCreateTokens = false;
   private currentUserId: string | null = null;
   private currentRole: "gm" | "player" | "viewer" = "player";
-  private measurementConfig: SceneMeasurementConfig = { mode: "grid", unit_label: "unidades", units_per_cell: 1 };
+  private measurementConfig: SceneMeasurementConfig = { mode: "grid", unit_label: "unidades", units_per_cell: 1, snap_to_cell_centers: false };
   private sceneWidth = 2000;
   private sceneHeight = 1500;
   private activeTool: "select" | "measurement" | "line" | "ellipse" | "polygon" | "freehand" = "select";
@@ -34,6 +35,9 @@ export class GameController {
   private selectedDrawingId: string | null = null;
   private draft: { kind: SceneDrawingKind; points: number[]; graphic: PIXI.Graphics } | null = null;
   private drawingDrag: { id: string; pointer: { x: number; y: number }; points: number[] } | null = null;
+  private tokenOwners = new Map<string, string | null>();
+  private selectedTokenIds = new Set<string>();
+  private selectionBox: { x: number; y: number; currentX: number; currentY: number } | null = null;
 
   private highlights = new Map<PIXI.Container, PIXI.Graphics>();
   private selection: SelectionState = {
@@ -52,6 +56,9 @@ export class GameController {
 
     this.camera = new Camera(this.pixiApp.app.canvas, this.pixiApp.camera);
     this.drawingLayer = this.pixiApp.layers.drawings;
+    this.selectionGraphics = new PIXI.Graphics();
+    this.selectionGraphics.eventMode = "none";
+    this.pixiApp.layers.ui.addChild(this.selectionGraphics);
     this.grid = new Grid(this.pixiApp.layers.grid);
     this.tokens = new TokenManager(this.pixiApp.layers.tokens);
     this.maps = new SceneMapLayer(
@@ -71,8 +78,8 @@ export class GameController {
 
     this.pixiApp.app.stage.on("pointermove", (event) => this.onStagePointerMove(event));
     this.pixiApp.app.stage.on("pointerdown", (event) => this.onStagePointerDown(event));
-    this.pixiApp.app.stage.on("pointerup", () => this.finishDrawingGesture());
-    this.pixiApp.app.stage.on("pointerupoutside", () => this.finishDrawingGesture());
+    this.pixiApp.app.stage.on("pointerup", (event) => this.onStagePointerUp(event));
+    this.pixiApp.app.stage.on("pointerupoutside", (event) => this.onStagePointerUp(event));
     window.addEventListener("vtt-create-token", (event) => {
       const assetId = (event as CustomEvent<{ assetId?: string }>).detail?.assetId;
       this.requestTokenCreate(assetId);
@@ -129,28 +136,47 @@ export class GameController {
 
   deleteSelectedToken() {
     if (!this.canCreateTokens) return;
-    const token = this.selection.selectedToken;
-    const id = token ? this.tokens.getId(token) : undefined;
-    if (!id) return;
-    this.socket.send({ type: "TOKEN_DELETE", payload: { id } });
+    for (const id of this.selectedTokenIds) this.socket.send({ type: "TOKEN_DELETE", payload: { id } });
   }
 
-    private onKeyDown(event: KeyboardEvent) {
-    if (event.key !== "Delete" && event.key !== "Backspace") return;
+  private onKeyDown(event: KeyboardEvent) {
     // Não apagar token enquanto a pessoa digita no chat ou em qualquer campo.
     const target = event.target as HTMLElement | null;
     if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      if (this.activeTool !== "select" || this.currentRole === "viewer" || this.selectedTokenIds.size === 0) return;
+      event.preventDefault();
+      const dx = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+      const dy = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+      for (const id of this.selectedTokenIds) {
+        const token = this.tokens.get(id);
+        if (!token || !this.canControlToken(id)) continue;
+        const point = this.grid.stepCell(token.x, token.y, dx, dy);
+        const x = Math.max(0, Math.min(this.sceneWidth - 50, point.x));
+        const y = Math.max(0, Math.min(this.sceneHeight - 50, point.y));
+        this.tokens.move(id, x, y);
+        this.socket.send({ type: "TOKEN_MOVE", payload: { id, x, y } });
+      }
+      return;
+    }
+    if (event.key !== "Delete" && event.key !== "Backspace") return;
     if (this.selectedDrawingId) {
       event.preventDefault();
       this.deleteSelectedDrawing();
       return;
     }
-    if (!this.selection.selectedToken) return;
+    if (this.selectedTokenIds.size === 0) return;
     event.preventDefault();
     this.deleteSelectedToken();
   }
 
   private onStagePointerMove(event: PIXI.FederatedPointerEvent) {
+    if (this.selectionBox) {
+      this.selectionBox.currentX = event.global.x;
+      this.selectionBox.currentY = event.global.y;
+      this.drawSelectionBox();
+      return;
+    }
     const world = event.getLocalPosition(this.pixiApp.camera);
     if (this.drawingDrag) {
       const dx = world.x - this.drawingDrag.pointer.x;
@@ -165,7 +191,7 @@ export class GameController {
       return;
     }
     if (this.draft) {
-      const point = this.clampWorldPoint(world);
+      const point = this.measurementPoint(world, this.draft.kind);
       if (this.draft.kind === "freehand") {
         const last = this.draft.points.length - 2;
         if (Math.hypot(point.x - this.draft.points[last], point.y - this.draft.points[last + 1]) >= 3 && this.draft.points.length < 2000) {
@@ -188,9 +214,15 @@ export class GameController {
   }
 
   private onStagePointerDown(event: PIXI.FederatedPointerEvent) {
-    if (event.button !== 0 || this.activeTool === "select") return;
+    if (event.button !== 0) return;
+    if (this.activeTool === "select") {
+      if (event.target !== this.pixiApp.app.stage) return;
+      event.stopPropagation();
+      this.selectionBox = { x: event.global.x, y: event.global.y, currentX: event.global.x, currentY: event.global.y };
+      return;
+    }
     event.stopPropagation();
-    const point = this.clampWorldPoint(event.getLocalPosition(this.pixiApp.camera));
+    const point = this.measurementPoint(event.getLocalPosition(this.pixiApp.camera), this.activeTool);
     if (this.activeTool === "polygon") {
       if (this.draft?.kind === "polygon" && event.detail >= 2) {
         this.finishDraft();
@@ -217,6 +249,63 @@ export class GameController {
       x: Math.max(0, Math.min(this.sceneWidth, point.x)),
       y: Math.max(0, Math.min(this.sceneHeight, point.y)),
     };
+  }
+
+  private measurementPoint(point: { x: number; y: number }, kind: SceneDrawingKind) {
+    const clamped = this.clampWorldPoint(point);
+    return kind === "measurement" && this.measurementConfig.snap_to_cell_centers
+      ? this.grid.snapCellCenter(clamped.x, clamped.y)
+      : clamped;
+  }
+
+  private onStagePointerUp(event: PIXI.FederatedPointerEvent) {
+    if (this.selectionBox) this.finishSelectionBox(event.global);
+    this.finishDrawingGesture();
+  }
+
+  private drawSelectionBox() {
+    const box = this.selectionBox;
+    if (!box) return;
+    const x = Math.min(box.x, box.currentX), y = Math.min(box.y, box.currentY);
+    const width = Math.abs(box.currentX - box.x), height = Math.abs(box.currentY - box.y);
+    this.selectionGraphics.clear();
+    this.selectionGraphics.rect(x, y, width, height)
+      .fill({ color: 0x38bdf8, alpha: 0.12 })
+      .stroke({ width: 1, color: 0x38bdf8, alpha: 0.9 });
+  }
+
+  private finishSelectionBox(point: { x: number; y: number }) {
+    const box = this.selectionBox;
+    if (!box) return;
+    this.selectionBox = null;
+    this.selectionGraphics.clear();
+    const left = Math.min(box.x, point.x), right = Math.max(box.x, point.x);
+    const top = Math.min(box.y, point.y), bottom = Math.max(box.y, point.y);
+    const ids: string[] = [];
+    if (right - left >= 4 || bottom - top >= 4) {
+      for (const [id, token] of this.tokens.all()) {
+        if (!this.canControlToken(id)) continue;
+        const bounds = token.getBounds();
+        if (bounds.x <= right && bounds.x + bounds.width >= left && bounds.y <= bottom && bounds.y + bounds.height >= top) ids.push(id);
+      }
+    }
+    this.selection.selectedToken = null;
+    this.selection.isDragging = false;
+    this.selectedDrawingId = null;
+    this.setSelectedTokenIds(ids);
+  }
+
+  private canControlToken(id: string): boolean {
+    if (this.currentRole === "gm") return true;
+    return this.currentRole === "player" && this.currentUserId !== null && this.tokenOwners.get(id) === this.currentUserId;
+  }
+
+  private setSelectedTokenIds(ids: string[]) {
+    this.selectedTokenIds = new Set(ids);
+    for (const [id, token] of this.tokens.all()) {
+      const highlight = this.highlights.get(token);
+      if (highlight) highlight.visible = this.selectedTokenIds.has(id);
+    }
   }
 
   private renderDraft(pointer?: { x: number; y: number }) {
@@ -290,6 +379,7 @@ export class GameController {
       if (oldHighlight) oldHighlight.visible = false;
       this.selection.selectedToken = null;
       this.selection.isDragging = false;
+      this.setSelectedTokenIds([]);
       if (this.currentUserId && (this.currentRole === "gm" || drawing.owner_user_id === this.currentUserId)) {
         const point = event.getLocalPosition(this.pixiApp.camera);
         this.drawingDrag = { id: drawing.id, pointer: point, points: [...drawing.points] };
@@ -325,7 +415,9 @@ export class GameController {
   private measurementLabel(points: number[]): string {
     const distance = Math.hypot(points[2] - points[0], points[3] - points[1]);
     if (this.measurementConfig.mode === "free") return `${Math.round(distance)} px`;
-    const cells = distance / Math.max(1, this.grid.cellSize);
+    const cells = this.measurementConfig.snap_to_cell_centers
+      ? this.grid.distanceInCells(points[0], points[1], points[2], points[3])
+      : distance / Math.max(1, this.grid.cellSize);
     if (this.measurementConfig.mode === "custom") {
       return `${Number((cells * this.measurementConfig.units_per_cell).toFixed(2))} ${this.measurementConfig.unit_label}`;
     }
@@ -366,16 +458,27 @@ export class GameController {
       onMoveCommitted: (id, x, y) => {
         this.socket.send({ type: "TOKEN_MOVE", payload: { id, x, y } });
       },
-      canInteract: () => this.activeTool === "select",
-      onTokenSelected: () => { this.selectedDrawingId = null; },
+      canInteract: (candidate) => {
+        const id = this.tokens.getId(candidate);
+        return this.activeTool === "select" && !!id && this.canControlToken(id);
+      },
+      onTokenSelected: (candidate) => {
+        this.selectedDrawingId = null;
+        const id = this.tokens.getId(candidate);
+        if (id) this.setSelectedTokenIds([id]);
+      },
     });
   }
 
   private clearTokens() {
     this.tokens.clear();
     this.highlights.clear();
+    this.tokenOwners.clear();
+    this.selectedTokenIds.clear();
     this.selection.selectedToken = null;
     this.selection.isDragging = false;
+    this.selectionBox = null;
+    this.selectionGraphics.clear();
   }
 
   private clearDrawings() {
@@ -415,6 +518,7 @@ export class GameController {
       for (const drawing of data.payload.drawings) this.createDrawing(drawing);
       for (const t of data.payload.tokens) {
         const token = this.tokens.create(t.id, t.x, t.y);
+        this.tokenOwners.set(t.id, t.owner_user_id ?? null);
         this.registerToken(token);
         if (t.asset_id) void this.tokens.setImage(t.id, assetUrl(t.asset_id));
       }
@@ -471,6 +575,7 @@ export class GameController {
 
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
+      this.tokenOwners.set(data.payload.id, data.payload.owner_user_id ?? null);
       this.registerToken(token);
       if (data.payload.asset_id) void this.tokens.setImage(data.payload.id, assetUrl(data.payload.asset_id));
       return;
@@ -496,6 +601,8 @@ export class GameController {
         }
       }
       this.tokens.remove(data.payload.id);
+      this.tokenOwners.delete(data.payload.id);
+      this.selectedTokenIds.delete(data.payload.id);
       return;
     }
   }

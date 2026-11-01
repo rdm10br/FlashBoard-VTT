@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { ChatMessage, InviteCodeSummary, Role, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneConfig, SceneMap, SceneMeasurementConfig, SessionAsset } from "@vtt/protocol";
 import { SocketManager } from "../network/socket";
 import { InvitePanel } from "./panels/InvitePanel";
 import { TokenPanel } from "./panels/TokenPanel";
@@ -20,12 +20,13 @@ type SessionInfoProps = {
   default_token_asset_id: string | null;
   current_scene_id: string | null;
   map: SceneMap | null;
+  sceneConfig: SceneConfig | null;
   measurementConfig: SceneMeasurementConfig | null;
   socket: SocketManager;
   chat?: ChatMessage[];
 };
 
-export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, assets, assetError, default_token_asset_id, current_scene_id, map, measurementConfig, socket, chat }: SessionInfoProps) {
+export function SessionInfo({ session_id, sessionName, nickname, role, invite_codes, assets, assetError, default_token_asset_id, current_scene_id, map, sceneConfig, measurementConfig, socket, chat }: SessionInfoProps) {
   const [activeTab, setActiveTab] = useState<"session" | "tokens" | "chat" | "map" | "tools">(() => (role === "gm" ? "session" : "tokens"));
   const [detachedTab, setDetachedTab] = useState<null | "session" | "tokens" | "chat" | "map">(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -93,7 +94,7 @@ export function SessionInfo({ session_id, sessionName, nickname, role, invite_co
   ) : null;
   const tokenPanelElement = <TokenPanel role={role} session_id={session_id} default_token_asset_id={default_token_asset_id} socket={socket} />;
   const mapPanelElement = role === "gm"
-    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} measurementConfig={measurementConfig} socket={socket} />
+    ? <MapPanel session_id={session_id} scene_id={current_scene_id} map={map} sceneConfig={sceneConfig} measurementConfig={measurementConfig} socket={socket} />
     : null;
   const mapToolsPanelElement = <MapToolsPanel sceneId={current_scene_id} config={measurementConfig} />;
   const chatPanelElement = (

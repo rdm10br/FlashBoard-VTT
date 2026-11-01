@@ -33,6 +33,7 @@ export function getScene(id: string) {
         measurement_mode: "grid" | "custom" | "free";
         measurement_unit_label: string;
         measurement_units_per_cell: number;
+        measurement_snap_to_cell_centers: number;
       }
     | undefined;
 }
@@ -90,11 +91,11 @@ export function setSceneConfig(
 
 export function setSceneMeasurementConfig(
   sceneId: string,
-  config: { mode: "grid" | "custom" | "free"; unit_label: string; units_per_cell: number },
+  config: { mode: "grid" | "custom" | "free"; unit_label: string; units_per_cell: number; snap_to_cell_centers: boolean },
 ): void {
   db.prepare(`
     UPDATE scenes
-    SET measurement_mode = ?, measurement_unit_label = ?, measurement_units_per_cell = ?
+    SET measurement_mode = ?, measurement_unit_label = ?, measurement_units_per_cell = ?, measurement_snap_to_cell_centers = ?
     WHERE id = ?
-  `).run(config.mode, config.unit_label, config.units_per_cell, sceneId);
+  `).run(config.mode, config.unit_label, config.units_per_cell, config.snap_to_cell_centers ? 1 : 0, sceneId);
 }

@@ -17,7 +17,7 @@ export function getTokensForScene(sceneId: string) {
   return db.prepare(
     // "SELECT * FROM tokens WHERE scene_id = ? ORDER BY id"
     "SELECT * FROM tokens WHERE scene_id = ? ORDER BY rowid"
-  ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; created_at: number }[];
+  ).all(sceneId) as { id: string; x: number; y: number; asset_id: string | null; owner_user_id: string | null; created_at: number }[];
 }
 
 export function getTokensForSession(sessionId: string) {

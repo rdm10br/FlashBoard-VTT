@@ -13,8 +13,8 @@ type TokenInteractionDeps = {
   selection: SelectionState;
   getTokenId: (token: PIXI.Container) => string | undefined;
   onMoveCommitted: (id: string, x: number, y: number) => void;
-  canInteract?: () => boolean;
-  onTokenSelected?: () => void;
+  canInteract?: (token: PIXI.Container) => boolean;
+  onTokenSelected?: (token: PIXI.Container) => void;
 };
 
 // Registra os handlers de seleção/drag de um token individual.
@@ -27,11 +27,12 @@ export function registerTokenInteractions(token: PIXI.Container, deps: TokenInte
   token.eventMode = "static";
 
   token.on("pointerdown", (event) => {
-    if (canInteract && !canInteract()) {
+    if (event.button !== 0) return;
+    if (canInteract && !canInteract(token)) {
       event.stopPropagation();
       return;
     }
-    onTokenSelected?.();
+    onTokenSelected?.(token);
     if (selection.selectedToken) {
       const prev = highlights.get(selection.selectedToken);
       if (prev) prev.visible = false;
@@ -49,13 +50,15 @@ export function registerTokenInteractions(token: PIXI.Container, deps: TokenInte
     selection.dragOffset.y = token.y - pos.y;
   });
 
-  const stopDrag = () => {
+  const stopDrag = (event: PIXI.FederatedPointerEvent) => {
     if (!selection.isDragging || !selection.selectedToken) return;
     selection.isDragging = false;
 
-    const snapped = grid.snapPoint(selection.selectedToken.x, selection.selectedToken.y);
-    selection.selectedToken.x = snapped.x;
-    selection.selectedToken.y = snapped.y;
+    if (!event.altKey) {
+      const snapped = grid.snapPoint(selection.selectedToken.x, selection.selectedToken.y);
+      selection.selectedToken.x = snapped.x;
+      selection.selectedToken.y = snapped.y;
+    }
 
     const id = getTokenId(selection.selectedToken);
     if (id) {

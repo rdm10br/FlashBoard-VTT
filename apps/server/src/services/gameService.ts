@@ -18,7 +18,7 @@ export const DEFAULT_SCENE_CONFIG: SceneConfig = {
 };
 
 export const DEFAULT_MEASUREMENT_CONFIG: SceneMeasurementConfig = {
-  mode: "grid", unit_label: "unidades", units_per_cell: 1,
+  mode: "grid", unit_label: "unidades", units_per_cell: 1, snap_to_cell_centers: false,
 };
 
 export function createSceneForSession(sessionId: string, name: string) {
@@ -61,6 +61,7 @@ export function getSceneState(sceneId: string, userId: string) {
     mode: scene.measurement_mode,
     unit_label: scene.measurement_unit_label,
     units_per_cell: scene.measurement_units_per_cell,
+    snap_to_cell_centers: scene.measurement_snap_to_cell_centers === 1,
   };
   const drawings = listSceneDrawings(sceneId, userId);
   return { scene_id: sceneId, tokens, map, config, measurement_config, drawings };

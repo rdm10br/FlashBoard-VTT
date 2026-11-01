@@ -20,6 +20,7 @@ export class Camera {
     this.viewport.addEventListener("pointermove", this.onPointerMove);
     this.viewport.addEventListener("pointerup", this.onPointerUp);
     this.viewport.addEventListener("pointercancel", this.onPointerUp);
+    this.viewport.addEventListener("contextmenu", this.onContextMenu);
     this.viewport.addEventListener("wheel", this.onWheel, { passive: false });
   }
 
@@ -43,11 +44,15 @@ export class Camera {
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
-    if (event.button !== 1) return;
+    if (event.button !== 2) return;
     event.preventDefault();
     this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
     this.viewport.setPointerCapture(event.pointerId);
     this.viewport.style.cursor = "grabbing";
+  };
+
+  private readonly onContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
   };
 
   private readonly onPointerMove = (event: PointerEvent): void => {

@@ -183,6 +183,7 @@ function isDrawingPoints(kind: unknown, value: unknown): value is number[] {
 function isSceneMeasurementConfig(value: unknown): boolean {
   if (!isRecord(value)) return false;
   return (value.mode === "grid" || value.mode === "custom" || value.mode === "free") &&
-    isString(value.unit_label, 24) && value.unit_label.trim().length > 0 &&
-    isFiniteNumber(value.units_per_cell) && value.units_per_cell >= 0.001 && value.units_per_cell <= 1_000_000;
+    isString(value.unit_label, 40) && value.unit_label.trim().length > 0 &&
+    isFiniteNumber(value.units_per_cell) && value.units_per_cell >= 0.001 && value.units_per_cell <= 1_000_000 &&
+    typeof value.snap_to_cell_centers === "boolean";
 }

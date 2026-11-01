@@ -15,6 +15,7 @@ export type Token = {
   x: number;
   y: number;
   asset_id?: string | null;
+  owner_user_id?: string | null;
 };
 
 export type Scene = {
@@ -70,6 +71,7 @@ export type SceneMeasurementConfig = {
   mode: MeasurementMode;
   unit_label: string;
   units_per_cell: number;
+  snap_to_cell_centers: boolean;
 };
 
 export type SceneDrawingKind = "line" | "ellipse" | "polygon" | "freehand" | "measurement";
@@ -183,7 +185,7 @@ export type ServerMessage =
   | { type: "SCENE_DRAWING_CREATED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_MOVED"; payload: { drawing: SceneDrawing } }
   | { type: "SCENE_DRAWING_DELETED"; payload: { scene_id: string; drawing_id: string } }
-  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null } }
+  | { type: "TOKEN_CREATE"; payload: { id: string; scene_id: string; x: number; y: number; asset_id?: string | null; owner_user_id?: string | null } }
   | { type: "TOKEN_MOVE"; payload: { id: string; x: number; y: number } }
   | { type: "TOKEN_ASSET_CHANGED"; payload: { id: string; asset_id: string | null } }
   | { type: "TOKEN_DELETED"; payload: { id: string } }

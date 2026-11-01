@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import type { SceneMap, SceneMeasurementConfig, ServerMessage } from "@vtt/protocol";
+import type { SceneConfig, SceneMap, SceneMeasurementConfig, ServerMessage } from "@vtt/protocol";
 import { ASSET_UPLOAD_URL, assetUrl } from "../../network/apiBase";
 import { SocketManager } from "../../network/socket";
 
 type MapPanelProps = {
   session_id: string;
   scene_id: string | null;
+  sceneConfig: SceneConfig | null;
   map: SceneMap | null;
   measurementConfig: SceneMeasurementConfig | null;
   socket: SocketManager;
 };
 
-export function MapPanel({ session_id, scene_id, map, measurementConfig, socket }: MapPanelProps) {
+export function MapPanel({ session_id, scene_id, map, sceneConfig, measurementConfig, socket }: MapPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFile = useRef<File | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -19,13 +20,18 @@ export function MapPanel({ session_id, scene_id, map, measurementConfig, socket 
   const [measureMode, setMeasureMode] = useState<SceneMeasurementConfig["mode"]>("grid");
   const [unitLabel, setUnitLabel] = useState("unidades");
   const [unitsPerCell, setUnitsPerCell] = useState(1);
+  const [snapToCells, setSnapToCells] = useState(false);
+  const [editableSceneConfig, setEditableSceneConfig] = useState<SceneConfig | null>(sceneConfig);
 
   useEffect(() => {
     if (!measurementConfig) return;
     setMeasureMode(measurementConfig.mode);
     setUnitLabel(measurementConfig.unit_label);
     setUnitsPerCell(measurementConfig.units_per_cell);
+    setSnapToCells(measurementConfig.snap_to_cell_centers);
   }, [measurementConfig]);
+
+  useEffect(() => setEditableSceneConfig(sceneConfig), [sceneConfig]);
 
   useEffect(() => {
     socket.setAssetUploadHandler("map_image", (data: ServerMessage) => {
@@ -110,9 +116,15 @@ export function MapPanel({ session_id, scene_id, map, measurementConfig, socket 
     if (!scene_id) return;
     socket.send({ type: "SCENE_MEASURE_CONFIG_SET", payload: {
       scene_id,
-      config: { mode: measureMode, unit_label: unitLabel.trim() || "unidades", units_per_cell: Number(unitsPerCell) },
+      config: { mode: measureMode, unit_label: unitLabel.trim() || "unidades", units_per_cell: Number(unitsPerCell), snap_to_cell_centers: snapToCells },
     } });
     setStatus("Configuração da régua salva nesta cena.");
+  }
+
+  function saveGridConfig() {
+    if (!scene_id || !editableSceneConfig) return;
+    socket.send({ type: "SCENE_CONFIG_SET", payload: { scene_id, ...editableSceneConfig } });
+    setStatus("Configuração do grid salva nesta cena.");
   }
 
   return (
@@ -129,13 +141,43 @@ export function MapPanel({ session_id, scene_id, map, measurementConfig, socket 
           <option value="free">Distância livre</option>
         </select>
         {measureMode === "custom" && <>
-          <input value={unitLabel} maxLength={24} onChange={(event) => setUnitLabel(event.target.value)} placeholder="Nome da unidade" />
+          <input value={unitLabel} maxLength={40} onChange={(event) => setUnitLabel(event.target.value)} placeholder="feet, metro, dias de caminhada" />
           <label style={styles.note}>Unidades por célula
             <input type="number" min="0.001" max="1000000" step="any" value={unitsPerCell}
               onChange={(event) => setUnitsPerCell(Number(event.target.value))} />
           </label>
         </>}
+        <label style={styles.note}>
+          <input type="checkbox" checked={snapToCells} onChange={(event) => setSnapToCells(event.target.checked)} />
+          Ajustar início e fim ao centro das células
+        </label>
         <button style={styles.button} onClick={saveMeasurementConfig} disabled={!scene_id}>Salvar modo da régua</button>
+      </div>
+      <div style={styles.measureConfig}>
+        <p style={styles.title}>Grade da cena</p>
+        {editableSceneConfig && <>
+          <label style={styles.note}>Formato
+            <select value={editableSceneConfig.grid_type} onChange={(event) => setEditableSceneConfig({ ...editableSceneConfig, grid_type: event.target.value as SceneConfig["grid_type"] })}>
+              <option value="square">Quadrado</option>
+              <option value="hex_pointy">Hexagonal (pontas)</option>
+              <option value="hex_flat">Hexagonal (lados)</option>
+              <option value="none">Sem grade</option>
+            </select>
+          </label>
+          <label style={styles.note}>Tamanho da célula
+            <input type="number" min="10" max="500" step="1" value={editableSceneConfig.grid_size}
+              onChange={(event) => setEditableSceneConfig({ ...editableSceneConfig, grid_size: Number(event.target.value) })} />
+          </label>
+          <label style={styles.note}>Cor da grade
+            <input type="color" value={editableSceneConfig.grid_color}
+              onChange={(event) => setEditableSceneConfig({ ...editableSceneConfig, grid_color: event.target.value })} />
+          </label>
+          <label style={styles.note}>Opacidade: {Math.round(editableSceneConfig.grid_opacity * 100)}%
+            <input type="range" min="0" max="100" value={editableSceneConfig.grid_opacity * 100}
+              onChange={(event) => setEditableSceneConfig({ ...editableSceneConfig, grid_opacity: Number(event.target.value) / 100 })} />
+          </label>
+          <button style={styles.button} onClick={saveGridConfig} disabled={!scene_id}>Salvar grade</button>
+        </>}
       </div>
       {map && (
         <div style={styles.preview}>

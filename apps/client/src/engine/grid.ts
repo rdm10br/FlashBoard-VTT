@@ -114,6 +114,41 @@ export class Grid {
     return { x: c.x - half, y: c.y - half };
   }
 
+  snapCellCenter(x: number, y: number): Pt {
+    const size = this.config.grid_size;
+    if (this.config.grid_type === "none") return { x, y };
+    if (this.config.grid_type === "square") {
+      return {
+        x: Math.round((x - size / 2) / size) * size + size / 2,
+        y: Math.round((y - size / 2) / size) * size + size / 2,
+      };
+    }
+    const cell = this.pixelToHex(x, y);
+    return this.hexCenter(cell.q, cell.r);
+  }
+
+  stepCell(x: number, y: number, dx: number, dy: number): Pt {
+    const size = this.config.grid_size;
+    const snapped = this.snapPoint(x, y);
+    const center = { x: snapped.x + 25, y: snapped.y + 25 };
+    if (this.config.grid_type === "none" || this.config.grid_type === "square") {
+      return { x: snapped.x + dx * size, y: snapped.y + dy * size };
+    }
+    const cell = this.pixelToHex(center.x, center.y);
+    const next = this.hexCenter(cell.q + dx, cell.r + dy);
+    return { x: next.x - 25, y: next.y - 25 };
+  }
+
+  distanceInCells(x1: number, y1: number, x2: number, y2: number): number {
+    if (this.config.grid_type === "hex_pointy" || this.config.grid_type === "hex_flat") {
+      const a = this.pixelToHex(x1, y1);
+      const b = this.pixelToHex(x2, y2);
+      const dq = b.q - a.q, dr = b.r - a.r;
+      return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+    }
+    return Math.hypot(x2 - x1, y2 - y1) / this.config.grid_size;
+  }
+
   // spawn no centro da cena (já alinhado ao grid)
   spawnPoint(): Pt {
     return this.snapPoint(this.config.width / 2, this.config.height / 2);

@@ -3,7 +3,7 @@ import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
-import type { ChatMessage, InviteCodeSummary, Role, SceneMeasurementConfig, ServerMessage, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, SceneConfig, SceneMeasurementConfig, ServerMessage, SessionAsset } from "@vtt/protocol";
 import type { ConnectionStatus } from "./network/socket";
 import { setAssetKey } from "./network/apiBase";
 
@@ -42,6 +42,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
   const [currentSceneId, setCurrentSceneId] = useState<string | null>(null);
   const [sceneMap, setSceneMap] = useState<SceneMap | null>(null);
   const [measurementConfig, setMeasurementConfig] = useState<SceneMeasurementConfig | null>(null);
+  const [sceneConfig, setSceneConfig] = useState<SceneConfig | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
@@ -64,6 +65,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
     setCurrentSceneId(null);
     setSceneMap(null);
     setMeasurementConfig(null);
+    setSceneConfig(null);
     setUser(null);
     setSession(null);
     setUserError(null);
@@ -142,6 +144,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setSession(null);
         setUser(null);
         setMeasurementConfig(null);
+        setSceneConfig(null);
         setUserError(null);
         setAdminError(null);
         setScreen("login");
@@ -205,12 +208,19 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setCurrentSceneId(data.payload.scene_id);
         setSceneMap(data.payload.map);
         setMeasurementConfig(data.payload.measurement_config);
+        setSceneConfig(data.payload.config);
         socket.forwardToGame(data);
         return;
       }
 
       if (data.type === "SCENE_MEASURE_CONFIG_CHANGED") {
         setMeasurementConfig(data.payload.config);
+        socket.forwardToGame(data);
+        return;
+      }
+
+      if (data.type === "SCENE_CONFIG_CHANGED") {
+        setSceneConfig(data.payload.config);
         socket.forwardToGame(data);
         return;
       }
@@ -387,6 +397,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           default_token_asset_id={session.default_token_asset_id}
           current_scene_id={currentSceneId}
           map={sceneMap}
+          sceneConfig={sceneConfig}
           measurementConfig={measurementConfig}
           socket={socket}
           chat={session.chat}

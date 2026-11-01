@@ -48,6 +48,10 @@ export class TokenManager {
     return this.ids.get(token);
   }
 
+  all() {
+    return [...this.tokens.entries()];
+  }
+
   async setImage(id: string, url: string) {
     const token = this.tokens.get(id);
     if (!token) return;

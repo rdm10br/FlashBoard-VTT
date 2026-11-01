@@ -33,7 +33,7 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
   const token = createTokenOnScene(payload.scene_id, payload.x, payload.y, assetId, ownerUserId);
   broadcastToScene(payload.scene_id, {
     type: "TOKEN_CREATE",
-    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id },
+    payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id },
   });
 }
 

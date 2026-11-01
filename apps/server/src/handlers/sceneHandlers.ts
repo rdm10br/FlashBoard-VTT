@@ -211,8 +211,9 @@ function handleSceneMeasureConfigSet(
   const config = payload.config as SceneMeasurementConfig;
   if (!scene || scene.session_id !== state.session_id || !config ||
       !["grid", "custom", "free"].includes(config.mode) ||
-      typeof config.unit_label !== "string" || config.unit_label.trim().length < 1 || config.unit_label.length > 24 ||
-      !Number.isFinite(config.units_per_cell) || config.units_per_cell < 0.001 || config.units_per_cell > 1_000_000) {
+      typeof config.unit_label !== "string" || config.unit_label.trim().length < 1 || config.unit_label.length > 40 ||
+      !Number.isFinite(config.units_per_cell) || config.units_per_cell < 0.001 || config.units_per_cell > 1_000_000 ||
+      typeof config.snap_to_cell_centers !== "boolean") {
     send(ws, { type: "SESSION_ERROR", payload: { message: "Configuração de medida inválida." } });
     return;
   }

@@ -156,6 +156,13 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    name: "scene-measurement-snap",
+    up(db) {
+      db.exec("ALTER TABLE scenes ADD COLUMN measurement_snap_to_cell_centers INTEGER NOT NULL DEFAULT 0;");
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {
