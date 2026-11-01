@@ -18,6 +18,7 @@ import { MAX_UPLOAD_BYTES } from "./storage/uploads.js";
 import { assetRoutes } from "./http/assetRoutes.js";
 import { backupRoutes } from "./http/backupRoutes.js";
 import { LIMITS } from "@vtt/protocol";
+import { refreshSceneParty } from "./handlers/sceneHandlers.js";
 
 // Cria o equivalente ao __dirname de forma segura para ESM e multiplataforma
 const __filename = fileURLToPath(import.meta.url);
@@ -195,6 +196,7 @@ const start = async () => {
 
     ws.on("close", () => {
       clientRegistry.remove(state);
+      if (state.session_id) refreshSceneParty(state.session_id);
       console.log("Client desconectado");
     });
 

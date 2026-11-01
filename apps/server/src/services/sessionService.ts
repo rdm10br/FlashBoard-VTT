@@ -10,6 +10,7 @@ import {
   getMembership,
   getSession,
   getVisibleScenes,
+  getScenesOccupiedByPlayers,
   getScenesForSession,
   useInviteCode,
 } from "../db/index.js";
@@ -37,7 +38,9 @@ export type SessionJoinOutcome =
 // }
 
 function resolveScenes(sessionId: string, role: Role) {
-  return role === "gm" ? getScenesForSession(sessionId) : getVisibleScenes(sessionId);
+  if (role === "gm") return getScenesForSession(sessionId);
+  if (role === "viewer") return getScenesOccupiedByPlayers(sessionId);
+  return getVisibleScenes(sessionId);
 }
 
 export function resolveActiveSceneId(sessionId: string, role: Role, activeSceneId?: string) {
@@ -70,7 +73,7 @@ export function buildSessionJoinedPayload(
   return {
     session_id: session.id,
     session_name: session.name,
-    member: { id: membership.id, nickname, role: membership.role },
+    member: { id: membership.user_id, nickname, role: membership.role },
     invite_codes: rawInviteCodes
       .map(toInviteSummary)
       .filter((item): item is InviteCodeSummary => item !== null),

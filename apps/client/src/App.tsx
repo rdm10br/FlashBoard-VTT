@@ -3,7 +3,7 @@ import { Login } from "./lobby/Login";
 import { Lobby } from "./lobby/Lobby";
 import { SessionInfo } from "./lobby/SessionInfo";
 import { SocketManager } from "./network/socket";
-import type { ChatMessage, InviteCodeSummary, Role, SceneConfig, SceneMeasurementConfig, ServerMessage, SessionAsset } from "@vtt/protocol";
+import type { ChatMessage, InviteCodeSummary, Role, Scene, ScenePartyMember, SceneConfig, SceneMeasurementConfig, ServerMessage, SessionAsset } from "@vtt/protocol";
 import type { ConnectionStatus } from "./network/socket";
 import { setAssetKey } from "./network/apiBase";
 
@@ -24,6 +24,9 @@ type SessionData = {
   invite_codes: InviteCodeSummary[];
   default_token_asset_id: string | null;
   chat?: ChatMessage[];
+  scenes: Scene[];
+  party: ScenePartyMember[];
+  party_scene_id: string | null;
 };
 
 import { clearAuthToken, getSavedAuthToken, saveAuthToken } from "./network/authStorage";
@@ -173,7 +176,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
           role: member.role,
           invite_codes,
           default_token_asset_id,
-          chat,
+          chat, scenes, party: [], party_scene_id: null,
         };
         sessionRef.current = nextSession;
         setSession(nextSession);
@@ -218,6 +221,32 @@ export function App({ socket, onSessionJoined }: AppProps) {
         setSceneConfig(data.payload.config);
         socket.forwardToGame(data);
         return;
+      }
+
+      if (data.type === "SCENE_LIST") {
+        setSession((current) => current && current.session_id === data.payload.session_id ? { ...current, scenes: data.payload.scenes, party: data.payload.party, party_scene_id: data.payload.party_scene_id } : current);
+        setSessionError(null);
+        return;
+      }
+
+      if (data.type === "SCENE_PARTY_STATE") {
+        setSession((current) => current && current.session_id === data.payload.session_id ? { ...current, party: data.payload.party, party_scene_id: data.payload.party_scene_id } : current);
+        return;
+      }
+
+      if (data.type === "SHEETS_LIST") {
+        window.dispatchEvent(new CustomEvent("vtt-sheets-list", { detail: data.payload })); return;
+      }
+      if (data.type === "SHEET_TEMPLATE_CHANGED") {
+        window.dispatchEvent(new CustomEvent("vtt-sheet-template", { detail: data.payload })); return;
+      }
+      if (data.type === "SHEET_CHANGED") {
+        window.dispatchEvent(new CustomEvent("vtt-sheet-changed", { detail: data.payload })); return;
+      }
+
+      if (data.type === "SCENE_CLEARED") {
+        setCurrentSceneId(null); setSceneMap(null); setSceneConfig(null); setMeasurementConfig(null);
+        socket.forwardToGame(data); return;
       }
 
       if (data.type === "SCENE_MEASURE_CONFIG_CHANGED") {
@@ -399,6 +428,9 @@ export function App({ socket, onSessionJoined }: AppProps) {
           nickname={session.nickname}
           role={session.role}
           invite_codes={session.invite_codes}
+          scenes={session.scenes}
+          party={session.party}
+          party_scene_id={session.party_scene_id}
           assets={sessionAssets}
           assetError={assetError}
           default_token_asset_id={session.default_token_asset_id}

@@ -18,10 +18,22 @@ export function createMembership(userId: string, sessionId: string, role: Role):
 
 export function getMembersForSession(sessionId: string) {
   return db.prepare(`
-    SELECT u.id, u.nickname, m.role, m.created_at
+    SELECT u.id, u.nickname, m.role, m.created_at, m.current_scene_id
     FROM memberships m
     JOIN users u ON u.id = m.user_id
     WHERE m.session_id = ?
     ORDER BY m.created_at
-  `).all(sessionId) as { id: string; nickname: string; role: Role; created_at: number }[];
+  `).all(sessionId) as { id: string; nickname: string; role: Role; created_at: number; current_scene_id: string | null }[];
+}
+
+export function setMemberScene(sessionId: string, userId: string, sceneId: string | null) {
+  db.prepare("UPDATE memberships SET current_scene_id = ? WHERE session_id = ? AND user_id = ? AND role = 'player'").run(sceneId, sessionId, userId);
+}
+
+export function setMembersScene(sessionId: string, userIds: string[], sceneId: string) {
+  const apply = db.transaction(() => {
+    const update = db.prepare("UPDATE memberships SET current_scene_id = ? WHERE session_id = ? AND user_id = ? AND role = 'player'");
+    for (const id of userIds) update.run(sceneId, sessionId, id);
+  });
+  apply();
 }

@@ -3,7 +3,8 @@ import { generateId } from "./idGenerators.js";
 
 export function createScene(sessionId: string, name: string) {
   const id = generateId("scene");
-  db.prepare("INSERT INTO scenes (id, session_id, name) VALUES (?, ?, ?)").run(id, sessionId, name);
+  const order = (db.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM scenes WHERE session_id = ?").get(sessionId) as { n: number }).n;
+  db.prepare("INSERT INTO scenes (id, session_id, name, sort_order) VALUES (?, ?, ?, ?)").run(id, sessionId, name, order);
   return getScene(id)!;
 }
 
@@ -44,8 +45,8 @@ export function getScenesForSession(sessionId: string) {
      FROM scenes s
      LEFT JOIN assets a ON a.id = s.map_asset_id
      WHERE s.session_id = ?
-     ORDER BY s.created_at`
-  ).all(sessionId) as { id: string; name: string; is_visible: number; created_at: number }[];
+     ORDER BY s.sort_order, s.created_at`
+  ).all(sessionId) as { id: string; name: string; is_visible: number; sort_order: number; created_at: number }[];
 }
 
 export function getVisibleScenes(sessionId: string) {
@@ -54,9 +55,27 @@ export function getVisibleScenes(sessionId: string) {
      FROM scenes s
      LEFT JOIN assets a ON a.id = s.map_asset_id
      WHERE s.session_id = ? AND s.is_visible = 1
-     ORDER BY s.created_at`
+     ORDER BY s.sort_order, s.created_at`
   ).all(sessionId) as { id: string; name: string; is_visible: number }[];
 }
+
+export function getScenesOccupiedByPlayers(sessionId: string) {
+  return db.prepare(`
+    SELECT DISTINCT s.id, s.name, s.is_visible, s.sort_order
+    FROM scenes s JOIN memberships m ON m.current_scene_id = s.id
+    WHERE s.session_id = ? AND s.is_visible = 1 AND m.role = 'player'
+    ORDER BY s.sort_order, s.created_at
+  `).all(sessionId) as { id: string; name: string; is_visible: number; sort_order: number }[];
+}
+
+export function renameScene(sceneId: string, name: string) { db.prepare("UPDATE scenes SET name = ? WHERE id = ?").run(name, sceneId); }
+
+export function reorderScenes(sessionId: string, sceneIds: string[]) {
+  const apply = db.transaction(() => sceneIds.forEach((id, index) => db.prepare("UPDATE scenes SET sort_order = ? WHERE id = ? AND session_id = ?").run(index, id, sessionId)));
+  apply();
+}
+
+export function deleteScene(sceneId: string) { db.prepare("DELETE FROM scenes WHERE id = ?").run(sceneId); }
 
 export function setSceneVisibility(sceneId: string, visible: boolean) {
   db.prepare("UPDATE scenes SET is_visible = ? WHERE id = ?").run(visible ? 1 : 0, sceneId);

@@ -11,6 +11,7 @@ import { tokenHandlers } from "../handlers/tokenHandlers.js";
 import { backupHandlers } from "../handlers/backupHandlers.js";
 import { assetHandlers } from "../handlers/assetHandlers.js";
 import { drawingHandlers } from "../handlers/drawingHandlers.js";
+import { sheetHandlers } from "../handlers/sheetHandlers.js";
 
 import { send } from "./broadcast.js";
 import { isAuthSessionActive } from "../services/authService.js";
@@ -25,6 +26,7 @@ const handlers: Partial<Record<ClientMessage["type"], MessageHandler>> = {
   ...backupHandlers,
   ...assetHandlers,
   ...drawingHandlers,
+  ...sheetHandlers,
 };
 
 // Tipos que exigem login e/ou sessão ativa
@@ -33,6 +35,8 @@ const REQUIRES_LOGIN = new Set<ClientMessage["type"]>([
   "SESSION_CREATE", "SESSION_JOIN", "SESSION_ENTER", "SESSION_SET_DEFAULT_TOKEN_ASSET", "SESSION_MEMBERS_REQUEST",
   "INVITE_CREATE", "INVITE_DELETE", "CHAT_SEND",
   "SCENE_CREATE", "SCENE_SWITCH", "SCENE_PUSH", "SCENE_SET_VISIBLE", "SCENE_CONFIG_SET",
+  "SCENE_LIST_REQUEST", "SCENE_RENAME", "SCENE_DELETE", "SCENE_REORDER", "SCENE_ASSIGN_PLAYERS",
+  "SHEETS_LIST_REQUEST", "SHEET_TEMPLATE_SET", "SHEET_UPDATE", "SHEET_ACTION",
   "SCENE_MAP_SET",
   "SCENE_MEASURE_CONFIG_SET", "SCENE_DRAWING_CREATE", "SCENE_DRAWING_MOVE", "SCENE_DRAWING_DELETE",
   "TOKEN_CREATE_REQUEST", "TOKEN_MOVE", "TOKEN_SET_ASSET", "TOKEN_DELETE", "TOKEN_OWNERS_SET",
@@ -45,6 +49,8 @@ const REQUIRES_SESSION = new Set<ClientMessage["type"]>([
   "SESSION_SET_DEFAULT_TOKEN_ASSET",
   "SESSION_MEMBERS_REQUEST",
   "SCENE_CREATE", "SCENE_SWITCH", "SCENE_PUSH", "SCENE_SET_VISIBLE", "SCENE_CONFIG_SET",
+  "SCENE_LIST_REQUEST", "SCENE_RENAME", "SCENE_DELETE", "SCENE_REORDER", "SCENE_ASSIGN_PLAYERS",
+  "SHEETS_LIST_REQUEST", "SHEET_TEMPLATE_SET", "SHEET_UPDATE", "SHEET_ACTION",
   "SCENE_MAP_SET",
   "SCENE_MEASURE_CONFIG_SET", "SCENE_DRAWING_CREATE", "SCENE_DRAWING_MOVE", "SCENE_DRAWING_DELETE",
   "TOKEN_CREATE_REQUEST", "TOKEN_MOVE", "TOKEN_SET_ASSET", "TOKEN_DELETE", "TOKEN_OWNERS_SET",

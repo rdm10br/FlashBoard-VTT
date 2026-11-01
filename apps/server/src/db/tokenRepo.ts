@@ -3,8 +3,13 @@ import { generateId } from "./idGenerators.js";
 
 export function createToken(sceneId: string, x: number, y: number, assetId?: string, ownerUserId?: string) {
   const id = generateId("token");
-  db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y, ownerUserId ?? null);
-  if (ownerUserId) db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)").run(id, ownerUserId);
+  const create = db.transaction(() => {
+    db.prepare("INSERT INTO tokens (id, scene_id, asset_id, x, y, owner_user_id) VALUES (?, ?, ?, ?, ?, ?)").run(id, sceneId, assetId ?? null, x, y, ownerUserId ?? null);
+    if (ownerUserId) db.prepare("INSERT INTO token_owners(token_id, user_id) VALUES (?, ?)").run(id, ownerUserId);
+    const scene = db.prepare("SELECT session_id FROM scenes WHERE id = ?").get(sceneId) as { session_id: string } | undefined;
+    if (scene) db.prepare("INSERT INTO character_sheets(id, session_id, token_id, name) VALUES (?, ?, ?, ?)").run(generateId("sheet"), scene.session_id, id, "Ficha");
+  });
+  create();
   return getToken(id)!;
 }
 

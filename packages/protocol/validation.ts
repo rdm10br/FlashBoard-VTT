@@ -109,6 +109,15 @@ export function parseClientMessage(value: unknown): ClientMessage | undefined {
     case "SCENE_CREATE":
       valid = isRecord(payload) && hasString(payload, "name", LIMITS.name);
       break;
+    case "SCENE_LIST_REQUEST": valid = isRecord(payload); break;
+    case "SCENE_RENAME": valid = isRecord(payload) && hasString(payload, "scene_id", 256) && hasString(payload, "name", LIMITS.name); break;
+    case "SCENE_DELETE": valid = isRecord(payload) && hasString(payload, "scene_id", 256); break;
+    case "SCENE_REORDER": valid = isRecord(payload) && Array.isArray(payload.scene_ids) && payload.scene_ids.length <= 200 && payload.scene_ids.every((id) => isString(id, 256)); break;
+    case "SCENE_ASSIGN_PLAYERS": valid = isRecord(payload) && hasString(payload, "scene_id", 256) && Array.isArray(payload.user_ids) && payload.user_ids.length <= 200 && payload.user_ids.every((id) => isString(id, 256)); break;
+    case "SHEETS_LIST_REQUEST": valid = isRecord(payload); break;
+    case "SHEET_TEMPLATE_SET": valid = isSheetTemplate(payload); break;
+    case "SHEET_UPDATE": valid = isRecord(payload) && hasString(payload, "id", 256) && hasString(payload, "name", LIMITS.name) && isSheetData(payload.data); break;
+    case "SHEET_ACTION": valid = isRecord(payload) && hasString(payload, "sheet_id", 256) && hasString(payload, "action_id", 80) && isSheetData(payload.data); break;
     case "SCENE_SWITCH":
     case "SCENE_PUSH":
       valid = isRecord(payload) && hasString(payload, "scene_id", 256);
@@ -192,4 +201,14 @@ function isSceneMeasurementConfig(value: unknown): boolean {
     isString(value.unit_label, 40) && value.unit_label.trim().length > 0 &&
     isFiniteNumber(value.units_per_cell) && value.units_per_cell >= 0.001 && value.units_per_cell <= 1_000_000 &&
     typeof value.snap_to_cell_centers === "boolean";
+}
+
+function isSheetData(value: unknown): value is Record<string, string> {
+  return isRecord(value) && Object.keys(value).length <= 200 && Object.entries(value).every(([key, item]) => key.length <= 80 && isString(item, 2000));
+}
+
+function isSheetTemplate(value: unknown): boolean {
+  if (!isRecord(value) || !hasString(value, "html", 100_000) || !hasString(value, "css", 100_000) || !Array.isArray(value.actions) || value.actions.length > 100) return false;
+  return value.actions.every((action) => isRecord(action) && hasString(action, "id", 80) && hasString(action, "label", 120) &&
+    (action.kind === "roll" ? hasString(action, "expression", 256) : action.kind === "chat" ? hasString(action, "text", 2000) : action.kind === "map" && action.operation === "ping"));
 }

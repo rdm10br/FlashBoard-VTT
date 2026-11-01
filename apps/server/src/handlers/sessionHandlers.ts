@@ -3,6 +3,7 @@ import type { HandlerContext, MessageHandler } from "./types.js";
 import { getAsset, getMembersForSession, getSessionByName, setDefaultTokenAsset } from "../db/index.js";
 import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
+import { setMemberScene } from "../db/index.js";
 import {
   buildSessionJoinedPayload,
   createSessionForUser,
@@ -53,7 +54,8 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
   clientRegistry.setSession(state, session.id);
   state.role = membership.role;
 
-  const activeSceneId = resolveActiveSceneId(session.id, membership.role, session.active_scene_id ?? undefined);
+  const activeSceneId = resolveActiveSceneId(session.id, membership.role, membership.current_scene_id ?? session.active_scene_id ?? undefined);
+  if (membership.role === "player" && activeSceneId && membership.current_scene_id !== activeSceneId) setMemberScene(session.id, state.user_id!, activeSceneId);
   if (activeSceneId) {
     clientRegistry.setScene(state, activeSceneId);
   }
@@ -86,7 +88,8 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
   clientRegistry.setSession(state, session.id);
   state.role = membership.role;
 
-  const activeSceneId = resolveActiveSceneId(session.id, membership.role, session.active_scene_id ?? undefined);
+  const activeSceneId = resolveActiveSceneId(session.id, membership.role, membership.current_scene_id ?? session.active_scene_id ?? undefined);
+  if (membership.role === "player" && activeSceneId && membership.current_scene_id !== activeSceneId) setMemberScene(session.id, state.user_id!, activeSceneId);
   if (activeSceneId) {
     clientRegistry.setScene(state, activeSceneId);
   }

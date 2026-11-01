@@ -20,6 +20,7 @@ export type Membership = {
   user_id: string;
   session_id: string;
   role: Role;
+  current_scene_id?: string | null;
 };
 
 export type InviteCode = {

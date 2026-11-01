@@ -23,7 +23,13 @@ export type Scene = {
   id: string;
   name: string;
   is_visible: boolean;
+  sort_order?: number;
 };
+
+export type ScenePartyMember = { user_id: string; nickname: string; role: Role; scene_id: string | null; online: boolean };
+export type SheetAction = { id: string; label: string; kind: "roll" | "chat" | "map"; expression?: string; text?: string; operation?: "ping" };
+export type SheetTemplate = { html: string; css: string; actions: SheetAction[] };
+export type CharacterSheet = { id: string; token_id: string; scene_id: string; x: number; y: number; name: string; data: Record<string, string>; owner_user_ids: string[] };
 
 export type SessionSummary = {
   id: string;
@@ -145,6 +151,15 @@ export type ClientMessage =
   | { type: "INVITE_CREATE"; payload: CreateInvitePayload }
   | { type: "INVITE_DELETE"; payload: { code: string } }
   | { type: "SCENE_CREATE"; payload: { name: string } }
+  | { type: "SCENE_LIST_REQUEST"; payload: {} }
+  | { type: "SCENE_RENAME"; payload: { scene_id: string; name: string } }
+  | { type: "SCENE_DELETE"; payload: { scene_id: string } }
+  | { type: "SCENE_REORDER"; payload: { scene_ids: string[] } }
+  | { type: "SCENE_ASSIGN_PLAYERS"; payload: { scene_id: string; user_ids: string[] } }
+  | { type: "SHEETS_LIST_REQUEST"; payload: {} }
+  | { type: "SHEET_TEMPLATE_SET"; payload: SheetTemplate }
+  | { type: "SHEET_UPDATE"; payload: { id: string; name: string; data: Record<string, string> } }
+  | { type: "SHEET_ACTION"; payload: { sheet_id: string; action_id: string; data: Record<string, string> } }
   | { type: "SCENE_SWITCH"; payload: { scene_id: string } }
   | { type: "SCENE_PUSH"; payload: { scene_id: string } }
   | { type: "SCENE_SET_VISIBLE"; payload: { scene_id: string; visible: boolean } }
@@ -180,6 +195,14 @@ export type ServerMessage =
   | { type: "INVITE_CREATED"; payload: InviteCodeSummary }
   | { type: "INVITE_DELETED"; payload: { code: string } }
   | { type: "SCENE_CREATED"; payload: Scene }
+  | { type: "SCENE_LIST"; payload: { session_id: string; scenes: Scene[]; party: ScenePartyMember[]; party_scene_id: string | null } }
+  | { type: "SCENE_PARTY_STATE"; payload: { session_id: string; party: ScenePartyMember[]; party_scene_id: string | null } }
+  | { type: "SCENE_DELETED"; payload: { scene_id: string; replacement_scene_id: string | null } }
+  | { type: "SCENE_CLEARED"; payload: {} }
+  | { type: "SHEETS_LIST"; payload: { session_id: string; template: SheetTemplate; sheets: CharacterSheet[] } }
+  | { type: "SHEET_TEMPLATE_CHANGED"; payload: { session_id: string; template: SheetTemplate } }
+  | { type: "SHEET_CHANGED"; payload: { sheet: CharacterSheet } }
+  | { type: "MAP_PING"; payload: { scene_id: string; x: number; y: number; label: string; nickname: string } }
   | { type: "SCENE_STATE"; payload: SceneState }
   | { type: "SCENE_PUSHED"; payload: { scene_id: string } }
   | { type: "SCENE_VISIBILITY_CHANGED"; payload: { scene_id: string; visible: boolean } }

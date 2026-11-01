@@ -180,6 +180,45 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 5,
+    name: "ordered-scenes-and-member-locations",
+    up(db) {
+      db.exec(`
+        ALTER TABLE scenes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+        UPDATE scenes SET sort_order = (SELECT COUNT(*) FROM scenes s2 WHERE s2.session_id = scenes.session_id AND s2.created_at < scenes.created_at);
+        ALTER TABLE memberships ADD COLUMN current_scene_id TEXT REFERENCES scenes(id) ON DELETE SET NULL;
+        CREATE INDEX memberships_current_scene_idx ON memberships(current_scene_id);
+      `);
+    },
+  },
+  {
+    version: 6,
+    name: "character-sheets-and-session-template",
+    up(db) {
+      db.exec(`
+        CREATE TABLE session_sheet_templates (
+          session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+          html TEXT NOT NULL DEFAULT '<h2 data-sheet-name></h2><label>Força <input data-field="strength" type="number" value="0"></label><button data-vtt-action="attack">Ataque</button>',
+          css TEXT NOT NULL DEFAULT 'body{font:14px system-ui;color:#eee;background:#181a22;padding:12px}input{max-width:80px}',
+          actions_json TEXT NOT NULL DEFAULT '[{"id":"attack","label":"Ataque","kind":"roll","expression":"1d20+{{strength}}"}]',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE TABLE character_sheets (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+          token_id TEXT NOT NULL UNIQUE REFERENCES tokens(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          data_json TEXT NOT NULL DEFAULT '{}',
+          updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );
+        CREATE INDEX character_sheets_session_idx ON character_sheets(session_id);
+      `);
+      const rows = db.prepare(`SELECT t.id, s.session_id FROM tokens t JOIN scenes s ON s.id=t.scene_id`).all() as { id: string; session_id: string }[];
+      const insert = db.prepare("INSERT INTO character_sheets(id,session_id,token_id,name,data_json) VALUES(?,?,?,?, '{}')");
+      for (const row of rows) insert.run(`sheet_${row.id}`, row.session_id, row.id, "Ficha");
+    },
+  },
 ];
 
 export function runMigrations(db: Database.Database): void {

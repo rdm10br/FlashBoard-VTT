@@ -18,6 +18,7 @@ export * from "./membershipRepo.js";
 export * from "./inviteRepo.js";
 export * from "./sceneRepo.js";
 export * from "./tokenRepo.js";
+export * from "./characterSheetRepo.js";
 export * from "./chatRepo.js";
 export * from "./backupRepo.js";
 export * from "./assetRepo.js";

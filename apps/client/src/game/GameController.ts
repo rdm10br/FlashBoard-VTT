@@ -37,6 +37,7 @@ export class GameController {
   private drawingDrag: { id: string; pointer: { x: number; y: number }; points: number[] } | null = null;
   private tokenOwners = new Map<string, string[]>();
   private selectedTokenIds = new Set<string>();
+  private mapPings = new Set<PIXI.Container>();
   private selectionBox: { x: number; y: number; currentX: number; currentY: number } | null = null;
 
   private highlights = new Map<PIXI.Container, PIXI.Graphics>();
@@ -505,6 +506,8 @@ export class GameController {
     this.draft?.graphic.destroy();
     this.draft = null;
     this.drawingDrag = null;
+    for (const ping of this.mapPings) ping.destroy({ children: true });
+    this.mapPings.clear();
   }
 
   private handleServerMessage(data: ServerMessage) {
@@ -590,6 +593,14 @@ export class GameController {
       return;
     }
 
+    if (data.type === "SCENE_CLEARED") {
+      this.clearTokens();
+      this.clearDrawings();
+      void this.maps.setMap(null, (assetId) => assetUrl(assetId));
+      this.currentSceneId = null;
+      return;
+    }
+
     if (data.type === "TOKEN_CREATE") {
       const token = this.tokens.create(data.payload.id, data.payload.x, data.payload.y);
       this.tokenOwners.set(data.payload.id, data.payload.owner_user_ids ?? (data.payload.owner_user_id ? [data.payload.owner_user_id] : []));
@@ -628,6 +639,16 @@ export class GameController {
       this.tokenOwners.delete(data.payload.id);
       this.selectedTokenIds.delete(data.payload.id);
       return;
+    }
+
+    if (data.type === "MAP_PING") {
+      if (data.payload.scene_id !== this.currentSceneId) return;
+      const marker = new PIXI.Container();
+      marker.addChild(new PIXI.Graphics().circle(0, 0, 28).stroke({ width: 3, color: 0xfacc15, alpha: 0.95 }).circle(0, 0, 38).stroke({ width: 1, color: 0xffffff, alpha: 0.7 }));
+      const label = new PIXI.Text({ text: `${data.payload.nickname}: ${data.payload.label}`, style: { fontSize: 13, fill: "#facc15", stroke: { color: "#111827", width: 3 } } });
+      label.position.set(32, -12); marker.addChild(label); marker.position.set(data.payload.x + 25, data.payload.y + 25);
+      this.drawingLayer.addChild(marker); this.mapPings.add(marker);
+      window.setTimeout(() => { marker.destroy({ children: true }); this.mapPings.delete(marker); }, 2500);
     }
   }
 }

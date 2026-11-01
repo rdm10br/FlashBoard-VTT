@@ -9,6 +9,7 @@ import { createScene,
   setTokenAsset,
   deleteToken,
   listSceneDrawings,
+  getScenesOccupiedByPlayers,
 } from "../db/index.js";
 
 export const DEFAULT_SCENE_CONFIG: SceneConfig = {
@@ -71,6 +72,7 @@ export function canEnterScene(sceneId: string, session_id: string, role: Role) {
   const scene = getScene(sceneId);
   if (!scene || scene.session_id !== session_id) return undefined;
   if ((role === "player" || role === "viewer") && !scene.is_visible) return undefined;
+  if (role === "viewer" && !getScenesOccupiedByPlayers(session_id).some((entry) => entry.id === sceneId)) return undefined;
   return scene;
 }
 

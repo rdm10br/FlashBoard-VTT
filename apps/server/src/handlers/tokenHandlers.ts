@@ -4,6 +4,7 @@ import { getAsset, getMembersForSession, getScene, getSession, getToken, setToke
 import { createTokenOnScene, moveTokenOnScene, setTokenAssetOnToken, deleteTokenOnScene } from "../services/gameService.js";
 import { broadcastToScene, send } from "../ws/broadcast.js";
 import { LIMITS } from "@vtt/protocol";
+import { refreshAccessibleSheetLists } from "./sheetHandlers.js";
 
 function isTokenImageFromCurrentSession(assetId: string | undefined, sessionId: string): boolean {
   if (!assetId) return true;
@@ -35,6 +36,7 @@ function handleTokenCreateRequest(payload: { scene_id: string; x: number; y: num
     type: "TOKEN_CREATE",
     payload: { id: token.id, scene_id: payload.scene_id, x: payload.x, y: payload.y, asset_id: token.asset_id, owner_user_id: token.owner_user_id, owner_user_ids: token.owner_user_ids },
   });
+  refreshAccessibleSheetLists(state.session_id!);
 }
 
 /** GM pode agir em qualquer token; player só no próprio. */
@@ -56,6 +58,7 @@ function handleTokenOwnersSet(payload: { token_ids: string[]; owner_user_ids: st
   }
   const changed = setTokenOwners(payload.token_ids, [...new Set(payload.owner_user_ids)]);
   broadcastToScene(state.scene_id!, { type: "TOKEN_OWNERS_CHANGED", payload: { scene_id: state.scene_id!, tokens: changed } });
+  refreshAccessibleSheetLists(state.session_id!);
 }
 
 function handleTokenMove(payload: { id: string; x: number; y: number }, ctx: HandlerContext) {
@@ -134,4 +137,5 @@ function handleTokenDelete(payload: { id: string }, ctx: HandlerContext) {
 
   deleteTokenOnScene(token.id);
   broadcastToScene(token.scene_id, { type: "TOKEN_DELETED", payload: { id: token.id } });
+  refreshAccessibleSheetLists(state.session_id!);
 }
