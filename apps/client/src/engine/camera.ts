@@ -1,7 +1,7 @@
 import * as PIXI from "pixi.js";
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2;
+const MIN_ZOOM = 0.025;
+const MAX_ZOOM = 2.5;
 const ZOOM_STEP = 1.12;
 
 /** Pan e zoom locais do jogador; o conteúdo dentro do container usa coordenadas da cena. */

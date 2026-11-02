@@ -644,12 +644,24 @@ export class GameController {
       return;
     }
 
+    // if (data.type === "SCENE_CONFIG_CHANGED") {
+    //   if (data.payload.scene_id !== this.currentSceneId) return;
+    //   this.sceneWidth = data.payload.config.width;
+    //   this.sceneHeight = data.payload.config.height;
+    //   this.camera.setSceneBounds(data.payload.config.width, data.payload.config.height);
+    //   this.grid.setConfig(data.payload.config);
+    //   return;
+    // }
+
     if (data.type === "SCENE_CONFIG_CHANGED") {
       if (data.payload.scene_id !== this.currentSceneId) return;
+      const resized = data.payload.config.width !== this.sceneWidth || data.payload.config.height !== this.sceneHeight;
       this.sceneWidth = data.payload.config.width;
       this.sceneHeight = data.payload.config.height;
       this.camera.setSceneBounds(data.payload.config.width, data.payload.config.height);
       this.grid.setConfig(data.payload.config);
+      // if (resized) this.camera.fit();
+      if (resized) this.camera.resize();
       return;
     }
 
