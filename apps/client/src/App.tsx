@@ -635,11 +635,11 @@ export function App({ socket, onSessionJoined }: AppProps) {
             role="alert"
             style={{
               position: "fixed",
-              bottom: 16,
+              top: 16,
               left: 16,
               zIndex: 9998,
               maxWidth: 420,
-              background: "#7f1d1d",
+              background: "#ad2626",
               color: "#fee2e2",
               padding: "10px 14px",
               borderRadius: 8,

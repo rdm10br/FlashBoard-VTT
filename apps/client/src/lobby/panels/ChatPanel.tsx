@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { ChatMessage, Member, Role } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
 
@@ -20,7 +26,12 @@ function roleLabel(role: Role) {
   return role === "gm" ? "GM" : role === "player" ? "Player" : "Viewer";
 }
 
-export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: ChatPanelProps) {
+export function ChatPanel({
+  chat,
+  presence = [],
+  socket,
+  initialHeight = 200,
+}: ChatPanelProps) {
   const [chatInput, setChatInput] = useState("");
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
@@ -42,7 +53,8 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
   const syncBottomState = useCallback(() => {
     const el = listRef.current;
     if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD;
+    const near =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD;
     stickRef.current = near;
     setAtBottom(near);
     if (near) setUnread(0);
@@ -58,7 +70,8 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
       setAtBottom(true);
       return;
     }
-    if (messages.length > previous) setUnread((n) => n + (messages.length - previous));
+    if (messages.length > previous)
+      setUnread((n) => n + (messages.length - previous));
   }, [messages.length, scrollToBottom]);
 
   // Redimensionar: guarda a altura e mantém o fim visível se estava colado nele.
@@ -90,9 +103,10 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
     setChatInput("");
   }
 
-  const jumpLabel = unread > 0
-    ? `↓ ${unread} ${unread === 1 ? "nova mensagem" : "novas mensagens"}`
-    : "↓ Ir para o final";
+  const jumpLabel =
+    unread > 0
+      ? `↓ ${unread} ${unread === 1 ? "nova mensagem" : "novas mensagens"}`
+      : "↓ Ir para o final";
 
   return (
     <div style={{ marginTop: "8px" }}>
@@ -100,7 +114,11 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
         <p style={styles.codesTitle}>Online ({onlineMembers.length})</p>
         <div style={styles.presenceList}>
           {onlineMembers.map((member) => (
-            <span key={member.id} style={styles.chip} title={roleLabel(member.role)}>
+            <span
+              key={member.id}
+              style={styles.chip}
+              title={roleLabel(member.role)}
+            >
               <span style={styles.dot} />
               {member.nickname}
               <span style={styles.roleTag}>{roleLabel(member.role)}</span>
@@ -110,7 +128,14 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
       </div>
 
       <p style={{ ...styles.codesTitle, marginTop: "10px" }}>Chat</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          marginTop: "4px",
+        }}
+      >
         <div style={{ position: "relative" }}>
           <div
             ref={listRef}
@@ -129,15 +154,30 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
             }}
           >
             {messages.map((m) => (
-              <div key={m.id} style={{ marginBottom: "6px", color: "#e5e7eb", wordBreak: "break-word" }}>
-                <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>: <span>{m.text}</span>
+              <div
+                key={m.id}
+                style={{
+                  marginBottom: "6px",
+                  color: "#e5e7eb",
+                  wordBreak: "break-word",
+                  fontSize: "18px",
+                  fontFamily: "",
+                }}
+              >
+                <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>:{" "}
+                <span>{m.text}</span>
               </div>
             ))}
           </div>
           {!atBottom && (
             <button
               onClick={jumpToBottom}
-              style={{ ...styles.jump, background: unread > 0 ? "#3b82f6" : "#374151" }}
+              style={{
+                ...styles.jump,
+                background: unread > 0 ? "#3b82f6" : "#143264",
+                fontSize: "16px",
+                // opacity: 0.9,
+              }}
             >
               {jumpLabel}
             </button>
@@ -147,11 +187,34 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
           <input
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") sendChat(); }}
-            placeholder="Digite mensagem"
-            style={{ flex: 1, padding: "6px", borderRadius: "6px", border: "1px solid #2e303a", background: "#0f172a", color: "#f3f4f6" }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") sendChat();
+            }}
+            placeholder="Digite mensagem ou / para Comandos"
+            style={{
+              flex: 1,
+              padding: "6px",
+              borderRadius: "6px",
+              border: "1px solid #5c6074",
+              background: "#0f172a",
+              color: "#f3f4f6",
+              fontSize: "16px",
+            }}
           />
-          <button onClick={sendChat} style={{ background: "#3b82f6", color: "#fff", border: "none", borderRadius: "4px", padding: "2px 8px", cursor: "pointer", fontSize: "11px" }}>Enviar</button>
+          <button
+            onClick={sendChat}
+            style={{
+              background: "#3b82f6",
+              color: "#fff",
+              border: "none",
+              borderRadius: "4px",
+              padding: "2px 8px",
+              cursor: "pointer",
+              fontSize: "13px",
+            }}
+          >
+            Enviar
+          </button>
         </div>
       </div>
     </div>
@@ -159,11 +222,51 @@ export function ChatPanel({ chat, presence = [], socket, initialHeight = 200 }: 
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  codesTitle: { margin: 0, color: "#9ca3af", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em" },
+  codesTitle: {
+    margin: 0,
+    color: "#9ca3af",
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  },
   presence: { display: "flex", flexDirection: "column", gap: "6px" },
-  presenceList: { display: "flex", flexWrap: "wrap", gap: "6px", maxHeight: "72px", overflowY: "auto" },
-  chip: { display: "inline-flex", alignItems: "center", gap: "5px", padding: "2px 8px", background: "#16171d", border: "1px solid #2e303a", borderRadius: "999px", color: "#e5e7eb", fontSize: "12px" },
-  dot: { width: "7px", height: "7px", borderRadius: "50%", background: "#22c55e", flexShrink: 0 },
+  presenceList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+    maxHeight: "72px",
+    overflowY: "auto",
+  },
+  chip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    padding: "2px 8px",
+    background: "#16171d",
+    border: "1px solid #2e303a",
+    borderRadius: "999px",
+    color: "#e5e7eb",
+    fontSize: "12px",
+  },
+  dot: {
+    width: "7px",
+    height: "7px",
+    borderRadius: "50%",
+    background: "#22c55e",
+    flexShrink: 0,
+  },
   roleTag: { color: "#6b7280", fontSize: "10px" },
-  jump: { position: "absolute", bottom: "10px", left: "50%", transform: "translateX(-50%)", color: "#fff", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.4)" },
+  jump: {
+    position: "absolute",
+    bottom: "10px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "999px",
+    padding: "4px 12px",
+    fontSize: "11px",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+  },
 };

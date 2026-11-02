@@ -91,7 +91,7 @@ export function handleChatCommand(
     };
 
     const rollMode = mode === "adv" ? " (vantagem)" : mode === "dis" ? " (desvantagem)" : "";
-    const rollText = `${state.nickname} rolou ${roll.expression}${rollMode}${roll.label ? ` ${roll.label}` : ""}`;
+    const rollText = `Rolou ${roll.expression}${rollMode}${roll.label ? ` ${roll.label}` : ""}`;
     const detailedText = `${rollText} → ${formatBreakdown(outcome)} = ${outcome.total}`;
     const fullText = detailedText.length <= LIMITS.chatText
       ? detailedText
