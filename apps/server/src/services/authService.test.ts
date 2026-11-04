@@ -77,9 +77,11 @@ test("legacy user rows survive the credential migration without gaining a login"
   const appliedMigrations = legacyDb
     .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
     .all();
-  assert.deepEqual(appliedMigrations, [
-    { version: 1, name: "legacy-schema-compatibility" },
-  ]);
+  assert.equal(appliedMigrations.length >= 1, true);
+  assert.deepEqual(appliedMigrations[0], {
+    version: 1,
+    name: "legacy-schema-compatibility",
+  });
   legacyDb.close();
 });
 

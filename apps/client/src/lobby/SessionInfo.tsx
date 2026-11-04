@@ -21,6 +21,7 @@ import { AssetLibraryPanel } from "./panels/AssetLibraryPanel";
 import { MapToolsPanel } from "./panels/MapToolsPanel";
 import { ScenePanel } from "./panels/ScenePanel";
 import { SheetPanel } from "./panels/SheetPanel";
+import { DiceRollerPanel } from "./panels/DiceRollerPanel";
 
 type SessionInfoProps = {
   session_id: string;
@@ -73,6 +74,7 @@ export function SessionInfo({
   const [collapsed, setCollapsed] = useState(false);
   const [width, setWidth] = useState<number>(380);
   const [members, setMembers] = useState<(Member & { online: boolean })[]>([]);
+  const [diceOpen, setDiceOpen] = useState(false);
 
   useEffect(() => {
     if (role !== "gm") return;
@@ -299,8 +301,13 @@ export function SessionInfo({
     />
   );
   const chatPanelElement = (
-  <ChatPanel chat={chat} presence={presence} socket={socket} initialHeight={detachedTab === "chat" ? 300 : 200} />
-);
+    <ChatPanel
+      chat={chat}
+      presence={presence}
+      socket={socket}
+      initialHeight={detachedTab === "chat" ? 300 : 200}
+    />
+  );
 
   return (
     <>
@@ -510,7 +517,23 @@ export function SessionInfo({
           sheetPanelElement}
         {activeTab === "chat" && detachedTab !== "chat" && chatPanelElement}
       </div>
-
+      {role !== "viewer" && (
+        <button
+          style={styles.diceFab}
+          onClick={() => setDiceOpen((open) => !open)}
+        >
+          🎲 Dados
+        </button>
+      )}
+      {diceOpen && role !== "viewer" && (
+        <FloatingPanel
+          title="Rolar dados"
+          initialPos={{ x: 60, y: 120 }}
+          onClose={() => setDiceOpen(false)}
+        >
+          <DiceRollerPanel sessionId={session_id} socket={socket} />
+        </FloatingPanel>
+      )}
       {detachedTab && (
         <FloatingPanel onClose={() => setDetachedTab(null)} title={detachedTab}>
           {detachedTab === "session" && sessionPanelElement}
@@ -620,5 +643,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 7px",
     cursor: "pointer",
     fontSize: "11px",
+  },
+  diceFab: {
+    position: "fixed",
+    left: 16,
+    bottom: 16,
+    zIndex: 100,
+    padding: "10px 14px",
+    background: "#aa3bff",
+    border: "none",
+    borderRadius: 999,
+    color: "#fff",
+    fontWeight: 600,
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
   },
 };

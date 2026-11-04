@@ -4,10 +4,11 @@ type FloatingPanelProps = {
   title: string | null;
   onClose: () => void;
   children: React.ReactNode;
+  initialPos?: { x: number; y: number };
 };
 
-export function FloatingPanel({ title, onClose, children }: FloatingPanelProps) {
-  const [pos, setPos] = useState({ x: 100, y: 100 });
+export function FloatingPanel({ title, onClose, children, initialPos }: FloatingPanelProps) {
+  const [pos, setPos] = useState(initialPos ?? { x: 100, y: 100 });
 
   // useRef garante que o objeto persiste entre renders sem recriar referências.
   const drag = useRef({ active: false, startX: 0, startY: 0, sx: 0, sy: 0 });

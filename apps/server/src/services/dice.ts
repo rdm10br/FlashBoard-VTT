@@ -112,15 +112,25 @@ export function parseRoll(input: string, limits: DiceLimits, mode: RollMode = "n
 
   const expression = formatExpression(terms);
 
-  // Vantagem/desvantagem: o primeiro d20 vira "2d20 mantendo o maior/menor".
+  // Vantagem/desvantagem: o termo principal de 1d20 vira "2d20 mantendo o maior/menor".
   let execTerms = terms;
   if (mode !== "normal") {
-    const first = terms.find((t): t is DiceTerm => t.kind === "dice");
-    if (!first || first.count !== 1 || first.sides !== 20 || first.sign !== 1 || first.keep) {
-      return fail("Vantagem e desvantagem só valem para 1d20 (ex.: /adv 1d20+5).");
+    const keepMode = mode === "adv" ? "kh" : "kl";
+    const d20Term = terms.find(
+      (t): t is DiceTerm => t.kind === "dice" && t.sides === 20 && t.count === 1 && t.sign === 1 && !t.keep,
+    );
+    if (!d20Term) {
+      return fail("Vantagem e desvantagem só valem para rolagens com 1d20 (ex.: /adv 1d20+5).");
     }
-    const keep: KeepRule = { mode: mode === "adv" ? "kh" : "kl", n: 1 };
-    execTerms = terms.map((t): Term => (t === first ? { ...first, count: 2, keep } : t));
+    for (const t of terms) {
+      if (t.kind === "dice" && t.keep) {
+        return fail("Vantagem e desvantagem não podem ser combinadas com kh/kl.");
+      }
+    }
+    const keep: KeepRule = { mode: keepMode, n: 1 };
+    execTerms = terms.map((t): Term =>
+      t === d20Term ? { ...t, count: 2, keep } : t,
+    );
   }
 
   const totalDice = execTerms.reduce((sum, t) => (t.kind === "dice" ? sum + t.count : sum), 0);

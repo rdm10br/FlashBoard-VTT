@@ -26,6 +26,83 @@ function roleLabel(role: Role) {
   return role === "gm" ? "GM" : role === "player" ? "Player" : "Viewer";
 }
 
+function parseRollText(text: string, details?: ChatMessage["roll_details"]) {
+  const arrowIdx = text.indexOf(" → ");
+  if (arrowIdx !== -1) {
+    const header = text.slice(0, arrowIdx).trim();
+    const rest = text.slice(arrowIdx + 3);
+    const eqIdx = rest.lastIndexOf(" = ");
+    if (eqIdx !== -1) {
+      const breakdown = rest.slice(0, eqIdx).trim();
+      const total = rest.slice(eqIdx + 3).trim();
+      return { header, breakdown, total };
+    }
+  }
+  if (details) {
+    const dicePart = `Rolou ${details.dice}${details.advantage ? " (vantagem)" : details.disadvantage ? " (desvantagem)" : ""}${details.attribute ? ` ${details.attribute}` : ""}`;
+    const breakdown = details.results ? `[${details.results.join(", ")}]` : "";
+    return {
+      header: dicePart,
+      breakdown,
+      total: String(details.total),
+    };
+  }
+  return null;
+}
+
+function RollBoxMessage({ message }: { message: ChatMessage }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const roll = parseRollText(message.text, message.roll_details);
+
+  if (!roll) {
+    return (
+      <div style={styles.messageItem}>
+        <strong style={{ color: "#93c5fd" }}>{message.sender}</strong>:{" "}
+        <span>{message.text}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.messageItem}>
+      <div
+        onClick={() => setIsOpen((open) => !open)}
+        style={{
+          ...styles.rollBox,
+          borderColor: isOpen ? "#6366f1" : "#2d3345",
+          background: isOpen ? "#181c28" : "#13161f",
+        }}
+        title="Clique para alternar detalhes da rolagem"
+      >
+        <div style={styles.rollHeader}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "16px" }}>🎲</span>
+            <strong style={{ color: "#93c5fd" }}>{message.sender}</strong>
+            <span style={{ color: "#cbd5e1" }}>{roll.header}</span>
+          </div>
+          <span style={styles.rollToggleBtn}>
+            {isOpen ? "▲ Ocultar" : "▼ Detalhes"}
+          </span>
+        </div>
+
+        {/* Quando aberta: exibe os números das rolagens e o resultado */}
+        {isOpen && (
+          <div style={styles.rollBreakdownRow}>
+            <span style={{ color: "#9ca3af", fontSize: "14px" }}>Rolagens:</span>
+            <code style={styles.rollBreakdownCode}>{roll.breakdown}</code>
+          </div>
+        )}
+
+        {/* Resultado sempre visível em destaque e em negrito */}
+        <div style={styles.rollResultRow}>
+          <span style={{ color: "#9ca3af", fontSize: "14px" }}>Resultado:</span>
+          <strong style={styles.rollTotalBold}>{roll.total}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChatPanel({
   chat,
   presence = [],
@@ -153,21 +230,20 @@ export function ChatPanel({
               borderRadius: "6px",
             }}
           >
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  marginBottom: "6px",
-                  color: "#e5e7eb",
-                  wordBreak: "break-word",
-                  fontSize: "18px",
-                  fontFamily: "",
-                }}
-              >
-                <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>:{" "}
-                <span>{m.text}</span>
-              </div>
-            ))}
+            {messages.map((m) => {
+              const isRoll =
+                m.message_type === "roll" ||
+                (m.text.includes(" → ") && m.text.includes(" = "));
+              if (isRoll) {
+                return <RollBoxMessage key={m.id} message={m} />;
+              }
+              return (
+                <div key={m.id} style={styles.messageItem}>
+                  <strong style={{ color: "#93c5fd" }}>{m.sender}</strong>:{" "}
+                  <span>{m.text}</span>
+                </div>
+              );
+            })}
           </div>
           {!atBottom && (
             <button
@@ -176,7 +252,6 @@ export function ChatPanel({
                 ...styles.jump,
                 background: unread > 0 ? "#3b82f6" : "#143264",
                 fontSize: "16px",
-                // opacity: 0.9,
               }}
             >
               {jumpLabel}
@@ -256,6 +331,66 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   roleTag: { color: "#6b7280", fontSize: "10px" },
+  messageItem: {
+    marginBottom: "6px",
+    color: "#e5e7eb",
+    wordBreak: "break-word",
+    fontSize: "18px",
+  },
+  rollBox: {
+    margin: "4px 0",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid #2d3345",
+    background: "#13161f",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    userSelect: "none",
+    transition: "border-color 0.15s ease, background 0.15s ease",
+  },
+  rollHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "15px",
+  },
+  rollToggleBtn: {
+    fontSize: "12px",
+    color: "#a5b4fc",
+    background: "#1e1b4b",
+    padding: "2px 8px",
+    borderRadius: "999px",
+    flexShrink: 0,
+    fontWeight: 600,
+  },
+  rollBreakdownRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "4px 8px",
+    background: "#0a0c10",
+    borderRadius: "4px",
+    border: "1px solid #1e2230",
+  },
+  rollBreakdownCode: {
+    color: "#e2e8f0",
+    fontSize: "15px",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  },
+  rollResultRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: "6px",
+  },
+  rollTotalBold: {
+    color: "#38bdf8",
+    fontSize: "20px",
+    fontWeight: 800,
+    textShadow: "0 0 10px rgba(56, 189, 248, 0.35)",
+  },
   jump: {
     position: "absolute",
     bottom: "10px",

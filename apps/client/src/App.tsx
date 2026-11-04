@@ -103,7 +103,7 @@ export function App({ socket, onSessionJoined }: AppProps) {
     setSessionAssets([]);
     setAssetError(null);
     setScreen("login");
-    // setAssetKey(null);
+    setAssetKey(null);
   }
 
   useEffect(() => {

@@ -52,7 +52,7 @@ test("kh mantém os maiores", () => {
   assert.equal(formatBreakdown(out), "[6, (2), 5, 3]");
 });
 
-test("vantagem e desvantagem", () => {
+test("vantagem e desvantagem em 1d20", () => {
   const adv = executeRoll(parse("1d20+5", "adv"), seq(14, 9));
   assert.equal(adv.total, 19);
   assert.equal(formatBreakdown(adv), "[14, (9)] + 5");
@@ -62,9 +62,17 @@ test("vantagem e desvantagem", () => {
   assert.equal(formatBreakdown(dis), "[(14), 9] + 5");
 });
 
-test("vantagem só vale para 1d20", () => {
+test("vantagem no d20 preserva dados secundários normais", () => {
+  const roll = parse("1d20+1d4+2", "adv");
+  const out = executeRoll(roll, seq(14, 9, 3));
+  assert.equal(out.total, 14 + 3 + 2);
+  assert.equal(formatBreakdown(out), "[14, (9)] + [3] + 2");
+});
+
+test("vantagem só vale para 1d20 e não combina com kh/kl", () => {
   assert.equal(parseRoll("2d20", LIMITS, "adv").ok, false);
   assert.equal(parseRoll("1d6", LIMITS, "adv").ok, false);
+  assert.equal(parseRoll("4d6kh3", LIMITS, "adv").ok, false);
 });
 
 test("respeita os limites da sessão", () => {
