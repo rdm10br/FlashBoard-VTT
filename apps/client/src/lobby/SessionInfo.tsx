@@ -306,6 +306,8 @@ export function SessionInfo({
       presence={presence}
       socket={socket}
       initialHeight={detachedTab === "chat" ? 300 : 200}
+      currentNickname={nickname}
+      currentRole={role}
     />
   );
 

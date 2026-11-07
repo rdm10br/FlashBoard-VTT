@@ -15,7 +15,122 @@ type ChatPanelProps = {
   presence?: PresenceMember[];
   socket: SocketManager;
   initialHeight?: number;
+  currentNickname?: string;
+  currentRole?: Role;
 };
+
+type CommandItem = {
+  command: string;
+  syntax: string;
+  description: string;
+  gmOnly?: boolean;
+};
+
+const COMMANDS: CommandItem[] = [
+  {
+    command: "/roll",
+    syntax: "<fórmula> [rótulo]",
+    description: "Rolar dados (ex: /roll 1d20+5)",
+  },
+  {
+    command: "/r",
+    syntax: "<fórmula> [rótulo]",
+    description: "Rolar dados (atalho de /roll)",
+  },
+  {
+    command: "/adv",
+    syntax: "<fórmula> [rótulo]",
+    description: "Rolar com vantagem",
+  },
+  {
+    command: "/dis",
+    syntax: "<fórmula> [rótulo]",
+    description: "Rolar com desvantagem",
+  },
+  {
+    command: "/whisper",
+    syntax: "<jogador> <mensagem>",
+    description: "Sussurro privado",
+  },
+  {
+    command: "/w",
+    syntax: "<jogador> <mensagem>",
+    description: "Sussurro privado (atalho)",
+  },
+  {
+    command: "/secret",
+    syntax: "<mensagem>",
+    description: "Mensagem secreta (apenas mestre)",
+    gmOnly: true,
+  },
+  {
+    command: "/setdice",
+    syntax: "<máx_dados> <máx_faces>",
+    description: "Configurar limite de dados",
+    gmOnly: true,
+  },
+  {
+    command: "/config dice",
+    syntax: "<máx_dados> <máx_faces>",
+    description: "Configurar limite de dados",
+    gmOnly: true,
+  },
+];
+
+type AutocompleteItem =
+  | {
+      type: "command";
+      key: string;
+      cmd: CommandItem;
+    }
+  | {
+      type: "member";
+      key: string;
+      member: PresenceMember;
+    };
+
+function getRoleBadge(role: Role) {
+  if (role === "gm") {
+    return {
+      text: "GM",
+      style: {
+        background: "rgba(170, 59, 255, 0.15)",
+        border: "1px solid rgba(170, 59, 255, 0.4)",
+        color: "#c084fc",
+        padding: "1px 6px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: 600,
+      },
+    };
+  }
+  if (role === "player") {
+    return {
+      text: "Player",
+      style: {
+        background: "rgba(59, 130, 246, 0.15)",
+        border: "1px solid rgba(59, 130, 246, 0.4)",
+        color: "#93c5fd",
+        padding: "1px 6px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: 600,
+      },
+    };
+  }
+  return {
+    text: "Viewer",
+    style: {
+      background: "rgba(156, 163, 175, 0.15)",
+      border: "1px solid rgba(156, 163, 175, 0.4)",
+      color: "#9ca3af",
+      padding: "1px 6px",
+      borderRadius: "4px",
+      fontSize: "11px",
+      fontWeight: 600,
+    },
+  };
+}
 
 const BOTTOM_THRESHOLD = 24;
 const MIN_HEIGHT = 80;
@@ -108,19 +223,143 @@ export function ChatPanel({
   presence = [],
   socket,
   initialHeight = 200,
+  currentNickname,
+  currentRole = "player",
 }: ChatPanelProps) {
   const [chatInput, setChatInput] = useState("");
   const [atBottom, setAtBottom] = useState(true);
   const [unread, setUnread] = useState(0);
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
   const listRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const prevLengthRef = useRef<number | null>(null);
   const startHeight = useRef(savedHeight ?? initialHeight);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeItemRef = useRef<HTMLDivElement>(null);
+
   const messages = chat ?? [];
 
   const onlineMembers = presence
     .filter((member) => member.online)
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
+
+  // Fecha popup ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setIsDismissed(true);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 1. Detectar se está no modo whisper
+  const whisperMatch = chatInput.match(/^(\/(?:whisper|w)\s+)(.*)$/i);
+  let whisperMode = false;
+  let whisperPrefix = "";
+  let whisperQuery = "";
+
+  if (whisperMatch) {
+    whisperMode = true;
+    whisperPrefix = whisperMatch[1];
+    whisperQuery = whisperMatch[2];
+  }
+
+  // Verifica se o alvo já foi completamente selecionado (membro seguido de espaço)
+  const memberAlreadyChosen =
+    whisperMode &&
+    presence.some(
+      (m) =>
+        m.nickname.toLowerCase() !== currentNickname?.toLowerCase() &&
+        whisperQuery.toLowerCase().startsWith(m.nickname.toLowerCase() + " "),
+    );
+
+  const activeWhisper = whisperMode && !memberAlreadyChosen;
+
+  // 2. Detectar se está no modo comando
+  const isNormalCommand = chatInput.startsWith("/") && !chatInput.includes(" ");
+  const isConfigCommand = /^\/config(?:\s+d.*)?$/i.test(chatInput);
+  const commandMode = !activeWhisper && (isNormalCommand || isConfigCommand);
+
+  // Lista de itens filtrados
+  let items: AutocompleteItem[] = [];
+
+  if (activeWhisper) {
+    const q = whisperQuery.trimStart().toLowerCase();
+    const candidateMembers = presence
+      .filter((m) => {
+        if (
+          currentNickname &&
+          m.nickname.toLowerCase() === currentNickname.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!q) return true;
+        return m.nickname.toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return a.nickname.localeCompare(b.nickname);
+      });
+
+    items = candidateMembers.map((m) => ({
+      type: "member",
+      key: `member-${m.id}`,
+      member: m,
+    }));
+  } else if (commandMode) {
+    const cmdQuery = chatInput.toLowerCase();
+    const availableCommands = COMMANDS.filter((cmd) => {
+      if (cmd.gmOnly && currentRole !== "gm") return false;
+      return cmd.command.toLowerCase().startsWith(cmdQuery);
+    }).sort((a, b) => {
+      const aExact = a.command.toLowerCase() === cmdQuery;
+      const bExact = b.command.toLowerCase() === cmdQuery;
+      if (aExact !== bExact) return aExact ? -1 : 1;
+      return 0;
+    });
+
+    items = availableCommands.map((c) => ({
+      type: "command",
+      key: `cmd-${c.command}`,
+      cmd: c,
+    }));
+  }
+
+  const isOpen = !isDismissed && items.length > 0;
+  const safeSelectedIndex =
+    items.length > 0 ? Math.min(Math.max(0, selectedIndex), items.length - 1) : 0;
+
+  // Rola item ativo para visualização ao navegar
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: "nearest" });
+  }, [safeSelectedIndex]);
+
+  // Reseta índice de seleção quando a lista de itens muda
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [activeWhisper, whisperQuery, chatInput]);
+
+  function selectItem(item: AutocompleteItem) {
+    if (item.type === "command") {
+      setChatInput(item.cmd.command + " ");
+      setIsDismissed(false);
+      setSelectedIndex(0);
+      inputRef.current?.focus();
+    } else if (item.type === "member") {
+      setChatInput(`${whisperPrefix}${item.member.nickname} `);
+      setIsDismissed(false);
+      setSelectedIndex(0);
+      inputRef.current?.focus();
+    }
+  }
 
   const scrollToBottom = useCallback(() => {
     const el = listRef.current;
@@ -178,6 +417,41 @@ export function ChatPanel({
     scrollToBottom();
     socket.send({ type: "CHAT_SEND", payload: { text } });
     setChatInput("");
+    setIsDismissed(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (isOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          items.length > 0 ? (prev + 1) % items.length : 0,
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          items.length > 0 ? (prev - 1 + items.length) % items.length : 0,
+        );
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const item = items[safeSelectedIndex] || items[0];
+        if (item) selectItem(item);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsDismissed(true);
+        return;
+      }
+    }
+
+    if (e.key === "Enter") {
+      sendChat();
+    }
   }
 
   const jumpLabel =
@@ -259,23 +533,156 @@ export function ChatPanel({
           )}
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") sendChat();
-            }}
-            placeholder="Digite mensagem ou / para Comandos"
-            style={{
-              flex: 1,
-              padding: "6px",
-              borderRadius: "6px",
-              border: "1px solid #5c6074",
-              background: "#0f172a",
-              color: "#f3f4f6",
-              fontSize: "16px",
-            }}
-          />
+          <div
+            ref={containerRef}
+            style={{ position: "relative", flex: 1, display: "flex" }}
+          >
+            {isOpen && (
+              <div
+                style={styles.autocompletePopup}
+                role="listbox"
+                aria-label="Sugestões de comandos"
+              >
+                <div style={styles.autocompleteHeader}>
+                  {activeWhisper
+                    ? "Sussurrar para (↑↓ navegar, Tab/Enter selecionar, Esc fechar)"
+                    : "Comandos (↑↓ navegar, Tab/Enter selecionar, Esc fechar)"}
+                </div>
+                <div style={styles.autocompleteList}>
+                  {items.map((item, index) => {
+                    const isSelected = index === safeSelectedIndex;
+                    if (item.type === "command") {
+                      return (
+                        <div
+                          key={item.key}
+                          ref={isSelected ? activeItemRef : undefined}
+                          role="option"
+                          aria-selected={isSelected}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectItem(item);
+                          }}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                          style={{
+                            ...styles.autocompleteItem,
+                            ...(isSelected
+                              ? styles.autocompleteItemSelected
+                              : {}),
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "baseline",
+                              gap: "6px",
+                              minWidth: 0,
+                            }}
+                          >
+                            <span style={styles.cmdName}>
+                              {item.cmd.command}
+                            </span>
+                            <span style={styles.cmdSyntax}>
+                              {item.cmd.syntax}
+                            </span>
+                            {item.cmd.gmOnly && (
+                              <span style={styles.gmBadge}>GM</span>
+                            )}
+                          </div>
+                          <span style={styles.cmdDesc}>
+                            {item.cmd.description}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    const badge = getRoleBadge(item.member.role);
+                    return (
+                      <div
+                        key={item.key}
+                        ref={isSelected ? activeItemRef : undefined}
+                        role="option"
+                        aria-selected={isSelected}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectItem(item);
+                        }}
+                        onMouseEnter={() => setSelectedIndex(index)}
+                        style={{
+                          ...styles.autocompleteItem,
+                          ...(isSelected
+                            ? styles.autocompleteItemSelected
+                            : {}),
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            minWidth: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              ...styles.statusDot,
+                              background: item.member.online
+                                ? "#10b981"
+                                : "#6b7280",
+                            }}
+                            title={
+                              item.member.online ? "Online" : "Offline"
+                            }
+                          />
+                          <span style={styles.memberName}>
+                            {item.member.nickname}
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span style={badge.style}>{badge.text}</span>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              color: item.member.online
+                                ? "#10b981"
+                                : "#6b7280",
+                            }}
+                          >
+                            {item.member.online ? "online" : "offline"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              value={chatInput}
+              onChange={(e) => {
+                setChatInput(e.target.value);
+                setIsDismissed(false);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Digite mensagem ou / para Comandos"
+              style={{
+                width: "100%",
+                padding: "6px",
+                borderRadius: "6px",
+                border: "1px solid #5c6074",
+                background: "#0f172a",
+                color: "#f3f4f6",
+                fontSize: "16px",
+              }}
+            />
+          </div>
           <button
             onClick={sendChat}
             style={{
@@ -286,6 +693,7 @@ export function ChatPanel({
               padding: "2px 8px",
               cursor: "pointer",
               fontSize: "13px",
+              flexShrink: 0,
             }}
           >
             Enviar
@@ -403,5 +811,88 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "11px",
     cursor: "pointer",
     boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+  },
+  autocompletePopup: {
+    position: "absolute",
+    bottom: "100%",
+    left: 0,
+    right: 0,
+    marginBottom: "6px",
+    background: "#131620",
+    border: "1px solid #2d3345",
+    borderRadius: "8px",
+    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.6)",
+    overflow: "hidden",
+    zIndex: 50,
+    display: "flex",
+    flexDirection: "column",
+  },
+  autocompleteHeader: {
+    padding: "6px 10px",
+    fontSize: "11px",
+    color: "#9ca3af",
+    background: "#0c0e15",
+    borderBottom: "1px solid #1f2433",
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  autocompleteList: {
+    maxHeight: "220px",
+    overflowY: "auto",
+  },
+  autocompleteItem: {
+    padding: "6px 10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "8px",
+    cursor: "pointer",
+    background: "transparent",
+    borderLeft: "3px solid transparent",
+    transition: "background 0.1s ease",
+  },
+  autocompleteItemSelected: {
+    background: "#1f273d",
+    borderLeftColor: "#3b82f6",
+  },
+  cmdName: {
+    color: "#60a5fa",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontWeight: 700,
+    fontSize: "14px",
+  },
+  cmdSyntax: {
+    color: "#94a3b8",
+    fontSize: "12px",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  },
+  cmdDesc: {
+    color: "#64748b",
+    fontSize: "12px",
+    textAlign: "right",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  gmBadge: {
+    background: "rgba(170, 59, 255, 0.2)",
+    border: "1px solid rgba(170, 59, 255, 0.4)",
+    color: "#c084fc",
+    padding: "0px 4px",
+    borderRadius: "3px",
+    fontSize: "10px",
+    fontWeight: 700,
+  },
+  statusDot: {
+    width: "7px",
+    height: "7px",
+    borderRadius: "50%",
+    flexShrink: 0,
+  },
+  memberName: {
+    color: "#f3f4f6",
+    fontSize: "14px",
+    fontWeight: 600,
   },
 };

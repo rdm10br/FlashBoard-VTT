@@ -2,10 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import type { CharacterSheet, ServerMessage } from "@vtt/protocol";
 import { SocketManager } from "../../network/socket";
 
-// d20 primeiro: /adv e /dis exigem que o primeiro termo de dados seja 1d20.
 const DICE = [20, 4, 6, 8, 10, 12, 100] as const;
-type Mode = "normal" | "adv" | "dis";
+const MAX_COUNT = 1000; // o limite real da sessão é validado no servidor
 const isInt = (value: string) => /^-?\d+$/.test(value.trim());
+
+type Keep = "all" | "kh" | "kl";
+type Group = { count: string; keep: Keep; keepN: string };
+const EMPTY: Group = { count: "", keep: "all", keepN: "1" };
+
+function countOf(group: Group): number {
+  const n = parseInt(group.count, 10);
+  return Number.isFinite(n) ? Math.max(0, Math.min(MAX_COUNT, n)) : 0;
+}
+
+function keepOf(group: Group, count: number): number {
+  const n = parseInt(group.keepN, 10);
+  return Math.max(1, Math.min(count, Number.isFinite(n) ? n : 1));
+}
 
 export function DiceRollerPanel({
   sessionId,
@@ -15,13 +28,12 @@ export function DiceRollerPanel({
   socket: SocketManager;
 }) {
   const [sheets, setSheets] = useState<CharacterSheet[]>([]);
-  const [counts, setCounts] = useState<Record<number, number>>({});
+  const [groups, setGroups] = useState<Record<number, Group>>({});
   const [rawBonus, setRawBonus] = useState("0");
   const [useAttr, setUseAttr] = useState(false);
   const [sheetId, setSheetId] = useState("");
   const [field, setField] = useState("");
   const [attrSign, setAttrSign] = useState<1 | -1>(1);
-  const [mode, setMode] = useState<Mode>("normal");
   const [label, setLabel] = useState("");
 
   useEffect(() => {
@@ -65,16 +77,31 @@ export function DiceRollerPanel({
       : 0;
   const raw = isInt(rawBonus) ? Number(rawBonus) : 0;
 
-  // Vantagem/desvantagem só valem para exatamente 1d20.
-  // const canAdvantage = counts[20] === 1;
-  const canAdvantage = true;
-  const effectiveMode: Mode = canAdvantage ? mode : "normal";
+  function groupOf(sides: number): Group {
+    return groups[sides] ?? EMPTY;
+  }
+
+  function patch(sides: number, changes: Partial<Group>) {
+    setGroups((current) => ({
+      ...current,
+      [sides]: { ...(current[sides] ?? EMPTY), ...changes },
+    }));
+  }
+
+  // Atalho estilo Roll20/Foundry: 2d20 mantendo o maior (ou o menor).
+  function d20Preset(keep: "kh" | "kl") {
+    patch(20, { count: "2", keep, keepN: "1" });
+  }
 
   const { expression, text } = useMemo(() => {
     const parts: string[] = [];
     for (const sides of DICE) {
-      const n = counts[sides] ?? 0;
-      if (n > 0) parts.push(`${parts.length ? "+" : ""}${n}d${sides}`);
+      const group = groups[sides] ?? EMPTY;
+      const n = countOf(group);
+      if (n === 0) continue;
+      let part = `${n}d${sides}`;
+      if (group.keep !== "all") part += `${group.keep}${keepOf(group, n)}`;
+      parts.push(parts.length ? `+${part}` : part);
     }
     if (!parts.length) return { expression: "", text: "" };
     for (const bonus of [raw, attrValue]) {
@@ -86,33 +113,11 @@ export function DiceRollerPanel({
         ? `${sheet.name} - ${selectedField}`
         : "";
     const finalLabel = (label.trim() || autoLabel).slice(0, 50);
-    const command =
-      effectiveMode === "adv"
-        ? "/adv"
-        : effectiveMode === "dis"
-          ? "/dis"
-          : "/roll";
     return {
       expression: expr,
-      text: `${command} ${expr}${finalLabel ? ` ${finalLabel}` : ""}`,
+      text: `/roll ${expr}${finalLabel ? ` ${finalLabel}` : ""}`,
     };
-  }, [
-    counts,
-    raw,
-    attrValue,
-    label,
-    useAttr,
-    sheet,
-    selectedField,
-    effectiveMode,
-  ]);
-
-  function change(sides: number, delta: number) {
-    setCounts((current) => ({
-      ...current,
-      [sides]: Math.max(0, Math.min(99, (current[sides] ?? 0) + delta)),
-    }));
-  }
+  }, [groups, raw, attrValue, label, useAttr, sheet, selectedField]);
 
   function roll() {
     if (!text) return;
@@ -122,28 +127,63 @@ export function DiceRollerPanel({
   return (
     <div style={styles.panel}>
       <p style={styles.title}>Dados</p>
-      <div style={styles.grid}>
-        {DICE.map((sides) => (
-          <div key={sides} style={styles.die}>
-            <strong style={{ color: "#f3f4f6" }}>d{sides}</strong>
-            <div style={styles.stepper}>
-              <button
-                style={styles.small}
-                onClick={() => change(sides, -1)}
-                disabled={!counts[sides]}
-              >
-                −
-              </button>
-              <span style={{ minWidth: 18, textAlign: "center" }}>
-                {counts[sides] ?? 0}
-              </span>
-              <button style={styles.small} onClick={() => change(sides, 1)}>
-                +
-              </button>
-            </div>
-          </div>
-        ))}
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <button style={styles.small} onClick={() => d20Preset("kh")}>
+          d20 com vantagem
+        </button>
+        <button style={styles.small} onClick={() => d20Preset("kl")}>
+          d20 com desvantagem
+        </button>
       </div>
+
+      <div style={styles.list}>
+        {DICE.map((sides) => {
+          const group = groupOf(sides);
+          const n = countOf(group);
+          return (
+            <div key={sides} style={styles.die}>
+              <strong style={{ color: "#f3f4f6", width: 36 }}>d{sides}</strong>
+              <input
+                type="number"
+                min={0}
+                max={MAX_COUNT}
+                placeholder="0"
+                value={group.count}
+                onChange={(e) => patch(sides, { count: e.target.value })}
+                style={{ ...styles.input, width: 60 }}
+                aria-label={`Quantidade de d${sides}`}
+              />
+              <select
+                value={group.keep}
+                onChange={(e) => patch(sides, { keep: e.target.value as Keep })}
+                style={{ ...styles.input, flex: 1, minWidth: 0 }}
+                aria-label={`Regra do d${sides}`}
+              >
+                <option value="all">Somar todos</option>
+                <option value="kh">Vantagem (manter maiores)</option>
+                <option value="kl">Desvantagem (manter menores)</option>
+              </select>
+              {group.keep !== "all" && (
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, n)}
+                  value={group.keepN}
+                  onChange={(e) => patch(sides, { keepN: e.target.value })}
+                  style={{ ...styles.input, width: 50 }}
+                  title="Quantos dados manter"
+                  aria-label={`Quantos d${sides} manter`}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <span style={styles.note}>
+        Com vantagem/desvantagem, o número ao lado é quantos dados do grupo são
+        mantidos (ex.: 3d20, manter 2 maiores).
+      </span>
 
       <label style={styles.row}>
         Bônus bruto
@@ -212,27 +252,6 @@ export function DiceRollerPanel({
           </div>
         ))}
 
-      <label style={styles.row}>
-        Modo
-        <select
-          value={effectiveMode}
-          onChange={(e) => setMode(e.target.value as Mode)}
-          disabled={!canAdvantage}
-          style={styles.input}
-        >
-          <option value="normal">Normal</option>
-          <option value="adv">Vantagem</option>
-          <option value="dis">Desvantagem</option>
-        </select>
-      </label>
-      {effectiveMode !== "normal" && (
-        <span style={styles.note}>
-          {effectiveMode === "adv"
-            ? "Rola 2d20 e mantém o maior."
-            : "Rola 2d20 e mantém o menor."}
-        </span>
-      )}
-
       <input
         placeholder="Rótulo (opcional)"
         maxLength={50}
@@ -249,10 +268,9 @@ export function DiceRollerPanel({
         <button
           style={styles.small}
           onClick={() => {
-            setCounts({});
+            setGroups({});
             setRawBonus("0");
             setLabel("");
-            setMode("normal");
           }}
         >
           Limpar
@@ -277,17 +295,16 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: "uppercase",
     letterSpacing: "0.05em",
   },
-  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 },
+  list: { display: "flex", flexDirection: "column", gap: 6 },
   die: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 6,
     padding: "4px 8px",
     background: "#17181f",
     border: "1px solid #2e303a",
     borderRadius: 6,
   },
-  stepper: { display: "flex", alignItems: "center", gap: 4 },
   row: { display: "flex", alignItems: "center", gap: 8 },
   input: {
     padding: 5,

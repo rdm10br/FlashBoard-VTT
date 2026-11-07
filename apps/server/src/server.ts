@@ -10,7 +10,7 @@ import { parseClientMessage } from "@vtt/protocol";
 import { clientRegistry, type ClientState } from "./clientRegistry.js";
 import { dispatch } from "./ws/dispatch.js";
 import { send } from "./ws/broadcast.js";
-import { isAdminBootstrapAvailable, isAuthSessionActive } from "./services/authService.js";
+import { isAdminBootstrapAvailable, isAuthSessionActive, prepareAdminBootstrap } from "./services/authService.js";
 import { randomUUID } from "crypto";
 import { isIP } from "net";
 import multipart from "@fastify/multipart";
@@ -99,6 +99,7 @@ const start = async () => {
   const PORT = Number(process.env.PORT ?? 3000);
   const HOST = process.env.HOST ?? "0.0.0.0";
   await app.listen({ port: PORT, host: HOST });
+  prepareAdminBootstrap(process.argv.includes("--admin-recovery"));
   // await app.listen({ port: PORT, host: "0.0.0.0" });
   console.log(`HTTP server rodando na porta ${PORT}`);
 

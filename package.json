@@ -12,6 +12,7 @@
     "dev:server": "npm --workspace apps/server run build && npm --workspace apps/server run start",
     "dev:client": "npm --workspace apps/client run build && npm --workspace apps/client run dev",
     "test": "tsx --test apps/server/src/all.test.ts && npm --workspace apps/client test",
+    "admin-recovery": "npm run build:server && node apps/server/dist/apps/server/src/server.js --admin-recovery",
     "host": "node scripts/host.mjs"
   },
   "workspaces": [

@@ -125,8 +125,20 @@ if (namedTunnel.valid) {
 }
 
 // --- Passo 4: sobe o server ---
+const recovery = process.argv.includes("--admin-recovery");
 console.log("\n▶ Iniciando server...");
-const server = spawn("node", [SERVER_ENTRY], {
+// const server = spawn("node", [SERVER_ENTRY], {
+//   cwd: rootDir,
+//   stdio: "inherit",
+//   env: {
+//     ...process.env,
+//     NODE_ENV: "production",
+//     HOST: "127.0.0.1",
+//     PORT: PORT.toString(),
+//     TRUST_PROXY_HEADERS: "true",
+//   },
+// });
+const server = spawn("node", [SERVER_ENTRY, ...(recovery ? ["--admin-recovery"] : [])], {
   cwd: rootDir,
   stdio: "inherit",
   env: {

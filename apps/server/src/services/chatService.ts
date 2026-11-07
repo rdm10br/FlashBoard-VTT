@@ -105,7 +105,7 @@ export function handleChatCommand(
     return;
   }
 
-  if (command === "whisper") {
+  if (command === "whisper" || command === "w") {
     if (!args) {
       send({ type: "USER_ERROR", payload: { message: "Uso: /whisper <nome> <mensagem>" } });
       return;

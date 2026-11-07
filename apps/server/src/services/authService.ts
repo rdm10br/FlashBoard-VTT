@@ -16,6 +16,7 @@ const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const MAX_LOGIN_FAILURES = 10;
 const SCRYPT_OPTIONS = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 const loginFailures = new Map<string, { count: number; resetAt: number }>();
+let bootstrapToken: string | null = null;
 
 function derivePassword(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -71,16 +72,25 @@ function createAuthSession(userId: string) {
   return token;
 }
 
+// export function isAdminBootstrapAvailable(): boolean {
+//   const secret = process.env.ADMIN_BOOTSTRAP_TOKEN;
+//   return !hasAdminAccount() && typeof secret === "string" && secret.length >= 32;
+// }
 export function isAdminBootstrapAvailable(): boolean {
-  const secret = process.env.ADMIN_BOOTSTRAP_TOKEN;
-  return !hasAdminAccount() && typeof secret === "string" && secret.length >= 32;
+  return bootstrapToken !== null;
 }
 
+// function matchesBootstrapToken(token: string | undefined): boolean {
+//   const configuredToken = process.env.ADMIN_BOOTSTRAP_TOKEN;
+//   if (!token || !configuredToken || configuredToken.length < 32) return false;
+//   const supplied = Buffer.from(token);
+//   const configured = Buffer.from(configuredToken);
+//   return supplied.length === configured.length && timingSafeEqual(supplied, configured);
+// }
 function matchesBootstrapToken(token: string | undefined): boolean {
-  const configuredToken = process.env.ADMIN_BOOTSTRAP_TOKEN;
-  if (!token || !configuredToken || configuredToken.length < 32) return false;
+  if (!token || !bootstrapToken) return false;
   const supplied = Buffer.from(token);
-  const configured = Buffer.from(configuredToken);
+  const configured = Buffer.from(bootstrapToken);
   return supplied.length === configured.length && timingSafeEqual(supplied, configured);
 }
 
@@ -105,7 +115,8 @@ export async function registerAccount(input: {
     }
     let isAdmin = false;
     if (input.bootstrapToken) {
-      if (!matchesBootstrapToken(input.bootstrapToken) || hasAdminAccount()) {
+      // if (!matchesBootstrapToken(input.bootstrapToken) || hasAdminAccount()) {
+      if (!matchesBootstrapToken(input.bootstrapToken)) {
         throw new Error("Código de criação de administrador inválido ou já utilizado.");
       }
       isAdmin = true;
@@ -119,7 +130,10 @@ export async function registerAccount(input: {
     return { user, token };
   });
 
-  return create.immediate();
+  const result = create.immediate();
+  if (result.user.is_admin) bootstrapToken = null;
+  // return create.immediate();
+  return result;
 }
 
 export async function authenticate(identifier: string, password: string, clientKey = identifier) {
@@ -200,4 +214,21 @@ export function updateAccountCredentials(userId: string, email: string, password
     return true;
   });
   return update.immediate();
+}
+
+export function prepareAdminBootstrap(recovery = false): void {
+  const hasAdmin = hasAdminAccount();
+  if (hasAdmin && !recovery) {
+    bootstrapToken = null;
+    return;
+  }
+  bootstrapToken = randomBytes(32).toString("base64url");
+  const line = "=".repeat(60);
+  console.log(`\n${line}`);
+  console.log(hasAdmin
+    ? "  MODO DE RECUPERAÇÃO: o código abaixo cria um NOVO administrador."
+    : "  Nenhum administrador existe. Código de criação do primeiro admin:");
+  console.log(`  ${bootstrapToken}`);
+  console.log("  (uso único; muda a cada reinício)");
+  console.log(`${line}\n`);
 }
