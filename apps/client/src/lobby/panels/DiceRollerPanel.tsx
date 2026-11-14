@@ -56,7 +56,7 @@ export function DiceRollerPanel({
     };
     window.addEventListener("vtt-sheets-list", onList);
     window.addEventListener("vtt-sheet-changed", onChanged);
-    socket.send({ type: "SHEETS_LIST_REQUEST", payload: {} });
+    /* Sheets são enviadas reativamente pelo servidor no SESSION_JOINED — sem request explícito */
     return () => {
       window.removeEventListener("vtt-sheets-list", onList);
       window.removeEventListener("vtt-sheet-changed", onChanged);

@@ -142,6 +142,7 @@ test("account authentication, legacy association, and session revocation", async
       authenticate,
       hashPassword,
       isAdminBootstrapAvailable,
+      prepareAdminBootstrap,
       registerAccount,
       resumeAuthentication,
       updateAccountCredentials,
@@ -152,13 +153,14 @@ test("account authentication, legacy association, and session revocation", async
       await authenticate("Aventureiro", "senha muito segura"),
       undefined,
     );
+    const bootstrapToken = prepareAdminBootstrap()!;
     assert.equal(isAdminBootstrapAvailable(), true);
 
     const firstAdmin = await registerAccount({
       email: "Admin@Example.com",
       nickname: "Admin",
       password: "senha de administrador segura",
-      bootstrapToken: process.env.ADMIN_BOOTSTRAP_TOKEN,
+      bootstrapToken,
     });
     assert.equal(firstAdmin.user.is_admin, true);
     assert.equal(isAdminBootstrapAvailable(), false);

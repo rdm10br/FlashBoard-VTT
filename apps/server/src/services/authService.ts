@@ -216,11 +216,11 @@ export function updateAccountCredentials(userId: string, email: string, password
   return update.immediate();
 }
 
-export function prepareAdminBootstrap(recovery = false): void {
+export function prepareAdminBootstrap(recovery = false): string | null {
   const hasAdmin = hasAdminAccount();
   if (hasAdmin && !recovery) {
     bootstrapToken = null;
-    return;
+    return null;
   }
   bootstrapToken = randomBytes(32).toString("base64url");
   const line = "=".repeat(60);
@@ -231,4 +231,5 @@ export function prepareAdminBootstrap(recovery = false): void {
   console.log(`  ${bootstrapToken}`);
   console.log("  (uso único; muda a cada reinício)");
   console.log(`${line}\n`);
+  return bootstrapToken;
 }

@@ -321,6 +321,13 @@ export function App({ socket, onSessionJoined }: AppProps) {
               ? { ...current, presence: data.payload.members }
               : current,
           );
+          if (sessionRef.current?.session_id === data.payload.session_id) {
+            window.dispatchEvent(
+              new CustomEvent("vtt-session-members", {
+                detail: data.payload.members,
+              }),
+            );
+          }
           return;
         }
 

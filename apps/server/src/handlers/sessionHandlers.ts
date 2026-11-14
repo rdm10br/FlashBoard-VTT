@@ -5,6 +5,7 @@ import { broadcastToSession, send, sendSceneState } from "../ws/broadcast.js";
 import { clientRegistry } from "../clientRegistry.js";
 import { setMemberScene } from "../db/index.js";
 import { refreshSceneParty } from "./sceneHandlers.js";
+import { sendSheetList } from "./sheetHandlers.js";
 import {
   buildSessionJoinedPayload,
   createSessionForUser,
@@ -36,6 +37,7 @@ function handleSessionCreate(payload: { name: string }, ctx: HandlerContext) {
     type: "SESSION_JOINED",
     payload: buildSessionJoinedPayload(session, membership, state.nickname),
   });
+  sendSheetList(ctx);
   publishPresence(session.id);
 }
 
@@ -67,6 +69,8 @@ function handleSessionJoin(payload: { code: string }, ctx: HandlerContext) {
     type: "SESSION_JOINED",
     payload: buildSessionJoinedPayload(session, membership, state.nickname, activeSceneId),
   });
+
+  sendSheetList(ctx);
 
   if (activeSceneId) {
     sendSceneState(ws, activeSceneId, state.user_id!);
@@ -102,6 +106,8 @@ function handleSessionEnter(payload: { session_id: string }, ctx: HandlerContext
     type: "SESSION_JOINED",
     payload: buildSessionJoinedPayload(session, membership, state.nickname, activeSceneId),
   });
+
+  sendSheetList(ctx);
 
   if (activeSceneId) {
     sendSceneState(ws, activeSceneId, state.user_id!);

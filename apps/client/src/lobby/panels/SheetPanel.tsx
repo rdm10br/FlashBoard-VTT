@@ -51,8 +51,8 @@ export function SheetPanel({ sessionId, role, socket }: { sessionId: string; rol
     window.addEventListener("vtt-sheets-list", onList); window.addEventListener("vtt-sheet-template", onTemplate); window.addEventListener("vtt-sheet-changed", onChanged);
     window.addEventListener("message", onMessage);
     window.addEventListener("vtt-session-members", onMembers);
-    socket.send({ type: "SHEETS_LIST_REQUEST", payload: {} });
-    if (role === "gm") socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id: sessionId } });
+    /* Sheets são enviadas reativamente pelo servidor no SESSION_JOINED e em cada mutação.
+       Members vêm via presence prop — sem necessidade de request explícito. */
     return () => { window.removeEventListener("vtt-sheets-list", onList); window.removeEventListener("vtt-sheet-template", onTemplate); window.removeEventListener("vtt-sheet-changed", onChanged); window.removeEventListener("message", onMessage); window.removeEventListener("vtt-session-members", onMembers); };
   }, [sessionId, role, socket]);
 

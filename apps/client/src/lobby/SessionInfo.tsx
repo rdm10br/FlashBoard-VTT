@@ -77,21 +77,12 @@ export function SessionInfo({
   const [diceOpen, setDiceOpen] = useState(false);
 
   useEffect(() => {
-    if (role !== "gm") return;
-    const refresh = () =>
-      socket.send({ type: "SESSION_MEMBERS_REQUEST", payload: { session_id } });
-    const onMembers = (event: Event) =>
-      setMembers(
-        (event as CustomEvent<(Member & { online: boolean })[]>).detail,
-      );
-    window.addEventListener("vtt-session-members", onMembers);
-    refresh();
-    const timer = window.setInterval(refresh, 10000);
-    return () => {
-      window.removeEventListener("vtt-session-members", onMembers);
-      window.clearInterval(timer);
-    };
-  }, [role, session_id, socket]);
+    if (presence && presence.length > 0) {
+      setMembers(presence);
+    }
+  }, [presence]);
+
+  /* Members agora são recebidos reativamente via presence prop — sem polling */
 
   // useRef para o estado de resize: persiste entre renders sem recriar referências.
   const resizing = useRef({ active: false, startX: 0, startWidth: 380 });
@@ -224,14 +215,6 @@ export function SessionInfo({
                       role: event.target.value as Role,
                     },
                   });
-                  window.setTimeout(
-                    () =>
-                      socket.send({
-                        type: "SESSION_MEMBERS_REQUEST",
-                        payload: { session_id },
-                      }),
-                    500,
-                  );
                 }}
                 style={{
                   background: "#0f172a",

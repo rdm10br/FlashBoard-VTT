@@ -7,19 +7,59 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const DATA_DIR = process.env.VTT_DATA_DIR
-  ? path.resolve(process.env.VTT_DATA_DIR)
-  : path.join(__dirname, "../../../../../data");
+export function getDataDir(): string {
+  return process.env.VTT_DATA_DIR
+    ? path.resolve(process.env.VTT_DATA_DIR)
+    : path.join(__dirname, "../../../../../data");
+}
 
-const DB_PATH = path.join(DATA_DIR, "vtt.db");
-fs.mkdirSync(DATA_DIR, { recursive: true });
+export const DATA_DIR = getDataDir();
 
-const db = Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+let currentDb: Database.Database | null = null;
+let currentDbPath: string | null = null;
+
+export function getActiveDb(): Database.Database {
+  const dataDir = getDataDir();
+  const dbPath = path.join(dataDir, "vtt.db");
+
+  if (!currentDb || !currentDb.open || currentDbPath !== dbPath) {
+    if (currentDb && currentDb.open) {
+      try {
+        currentDb.close();
+      } catch {}
+    }
+    fs.mkdirSync(dataDir, { recursive: true });
+    currentDb = new Database(dbPath);
+    currentDb.pragma("journal_mode = WAL");
+    currentDb.pragma("foreign_keys = ON");
+    currentDbPath = dbPath;
+  }
+  return currentDb;
+}
 
 export function closeDatabase(): void {
-  db.close();
+  if (currentDb && currentDb.open) {
+    currentDb.close();
+  }
 }
+
+const db = new Proxy({} as Database.Database, {
+  get(_target, prop) {
+    const active = getActiveDb();
+    const value = Reflect.get(active, prop, active);
+    if (typeof value === "function") {
+      return value.bind(active);
+    }
+    return value;
+  },
+  set(_target, prop, value) {
+    const active = getActiveDb();
+    return Reflect.set(active, prop, value, active);
+  },
+  has(_target, prop) {
+    const active = getActiveDb();
+    return Reflect.has(active, prop);
+  },
+});
 
 export default db;

@@ -22,7 +22,7 @@ function accessibleSheets(ctx: HandlerContext) {
   return getCharacterSheets(ctx.state.session_id!).filter((sheet) => canReadSheet(sheet, ctx.state));
 }
 
-function sendSheetList(ctx: HandlerContext) {
+export function sendSheetList(ctx: HandlerContext) {
   const sheets = accessibleSheets(ctx);
   const template = ctx.state.role === "gm" || sheets.length ? getSheetTemplate(ctx.state.session_id!) : { html: "", css: "", actions: [] };
   send(ctx.ws, { type: "SHEETS_LIST", payload: { session_id: ctx.state.session_id!, template, sheets } });
